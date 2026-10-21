@@ -4,12 +4,37 @@ __version__ = "0.1.0"
 
 from .context import ContextWindow, HierarchicalSummarizer, ContextMessage, Summary, SummaryTier
 from .tools import ToolRegistry, ToolEntry, ToolParameter, SandboxSpec, ToolCategory
-from .memory import MemoryStore
-from .agent import Agent, AgentLoop
+from .memory import MemoryStore, MemoryNudge
+from .agent import Agent, AgentLoop, AgentResult
+from .profiles import AgentProfile, load_profile, load_profiles
+from .prompts import PromptAssembler
+from .models import GGUFMetadata, ModelProfile, probe_gguf, autoconfig, LlamaServer
+from .optimize import ParamSweep, BenchmarkHarness, BenchResult
+from .orchestration import TaskPlanner, MultiAgentOrchestrator, MultiAgentResult, PlanStep
+from .skills import Skill, SkillRegistry, parse_skill
+from .skill_download import SkillDownloader
+from .tool_synthesis import ToolSynthesizer
+from .codebase_explore import CodebaseExplorer, extract_symbols
+from .capabilities import register_capability_tools
+from .execution import register_execution_tools
+from .browser import register_browser_tools
+from .bootstrap import register_default_tools
+from .delegation import DelegationManager
+from .learning import LearningLoop
+from .mcp_client import MCPClient, MCPRegistry
 from .providers import LLMProvider, OpenAICompatibleProvider
 
 __all__ = [
     "ContextWindow", "HierarchicalSummarizer", "ContextMessage", "Summary", "SummaryTier",
     "ToolRegistry", "ToolEntry", "ToolParameter", "SandboxSpec", "ToolCategory",
-    "MemoryStore", "Agent", "AgentLoop", "LLMProvider", "OpenAICompatibleProvider",
+    "MemoryStore", "MemoryNudge", "Agent", "AgentLoop", "AgentResult",
+    "AgentProfile", "load_profile", "load_profiles", "PromptAssembler",
+    "GGUFMetadata", "ModelProfile", "probe_gguf", "autoconfig", "LlamaServer",
+    "ParamSweep", "BenchmarkHarness", "BenchResult",
+    "TaskPlanner", "MultiAgentOrchestrator", "MultiAgentResult", "PlanStep",
+    "Skill", "SkillRegistry", "parse_skill", "SkillDownloader", "ToolSynthesizer",
+    "CodebaseExplorer", "extract_symbols", "register_capability_tools",
+    "register_execution_tools", "register_browser_tools", "register_default_tools",
+    "DelegationManager", "LearningLoop", "MCPClient", "MCPRegistry",
+    "LLMProvider", "OpenAICompatibleProvider",
 ]

@@ -46,9 +46,9 @@ async def _run(goal, base_url, model):
     from .providers import OpenAICompatibleProvider
     from .agent import Agent
     from .tools import ToolRegistry
-    from .capabilities import register_capability_tools
+    from .bootstrap import register_default_tools
     reg = ToolRegistry.get_instance()
-    register_capability_tools(reg)
+    register_default_tools(reg)
     provider = OpenAICompatibleProvider(base_url=base_url, model=model)
     agent = Agent(provider=provider, tools=reg, system_prompt="You are a helpful agent.")
     result = await agent.run(goal)

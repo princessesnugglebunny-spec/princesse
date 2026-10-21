@@ -39,6 +39,11 @@ princesse run "summarize this repo" --base-url http://localhost:8080/v1 --model 
 - Parameter sweep + benchmark harness.
 - Multi-agent orchestration.
 - Capability tools: complexity, coverage, PII redaction, telemetry, canary, release tagging, hot-swap, knowledge extraction.
+- Execution tools: terminal, Python runner, file read/write/edit, directory listing.
+- Browser automation (optional playwright): open URL, screenshot.
+- Subagent delegation: spawn isolated agents, parallel delegation.
+- MCP client: connect to MCP servers, list/call tools.
+- Learning loop: post-task review, memory nudges, auto skill creation.
 
 ## Tests
 

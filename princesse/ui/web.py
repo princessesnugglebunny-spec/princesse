@@ -31,9 +31,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/tools":
             from ..tools import ToolRegistry
-            from ..capabilities import register_capability_tools
+            from ..bootstrap import register_default_tools
             reg = ToolRegistry.get_instance()
-            register_capability_tools(reg)
+            register_default_tools(reg)
             data = [t.name for t in reg.list_all()]
             body = json.dumps(data).encode()
             self.send_response(200)
