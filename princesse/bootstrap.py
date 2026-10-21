@@ -10,10 +10,11 @@ from .git_tools import register_git_tools
 from .lsp_tool import register_lsp_tools
 
 
-def register_default_tools(registry: ToolRegistry | None = None) -> ToolRegistry:
+def register_default_tools(registry: ToolRegistry | None = None, context=None) -> ToolRegistry:
+    """Register every built-in tool pack. Safe to call more than once."""
     reg = registry or ToolRegistry.get_instance()
     register_capability_tools(reg)
-    register_execution_tools(reg)
+    register_execution_tools(reg, context=context)
     register_browser_tools(reg)
     register_git_tools(reg)
     register_lsp_tools(reg)

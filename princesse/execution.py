@@ -9,19 +9,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .security import CommandPolicy, PathEscapeError, safe_path
+from .security import CommandPolicy, PathEscapeError, SandboxIsolator, safe_path
 from .tools import ToolRegistry, ToolCategory, ToolParameter, register_tool
 
 
 @dataclass
 class ExecutionContext:
-    """Holds the workspace root and command policy used by execution tools."""
+    """Holds the workspace root, command policy, and sandbox used by execution tools."""
     root: Path = field(default_factory=lambda: Path.cwd())
     policy: CommandPolicy = field(default_factory=CommandPolicy)
     timeout: int = 60
+    sandbox_enabled: bool = True
+    allow_host_execution: bool = False
+    memory_mb: int = 2048
 
     def resolve(self, path: str) -> Path:
         return safe_path(path, self.root)
+
+    def sandbox(self) -> SandboxIsolator:
+        return SandboxIsolator(root=self.root, timeout=self.timeout, memory_mb=self.memory_mb)
 
 
 def _default_context() -> ExecutionContext:
@@ -41,6 +47,10 @@ def run_terminal(command: str, cwd: str | None = None, timeout: int = 60,
             workdir = str(ctx.resolve(cwd))
         except PathEscapeError as e:
             return {"returncode": -1, "stdout": "", "stderr": f"blocked: {e}"}
+    if ctx.sandbox_enabled and not ctx.allow_host_execution:
+        result = ctx.sandbox().run_command_sync(command, timeout or ctx.timeout)
+        result["sandboxed"] = True
+        return result
     try:
         # shell=True is deliberate: the tool takes a shell command. The command is
         # gated by CommandPolicy (allowlist + deny patterns) and runs inside the
@@ -60,6 +70,10 @@ def run_python(code: str, timeout: int = 30, context: ExecutionContext | None = 
         f.write(code)
         path = f.name
     try:
+        if ctx.sandbox_enabled and not ctx.allow_host_execution:
+            result = ctx.sandbox().run_command_sync(f"python3 {path}", timeout)
+            result["sandboxed"] = True
+            return result
         proc = subprocess.run(["python3", path], capture_output=True, text=True, timeout=timeout,
                               cwd=str(ctx.root))
         return {"returncode": proc.returncode, "stdout": proc.stdout[-4000:], "stderr": proc.stderr[-4000:]}

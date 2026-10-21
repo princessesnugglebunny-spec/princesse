@@ -27,6 +27,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_web = sub.add_parser("web", help="Start minimal web UI")
     p_web.add_argument("--port", type=int, default=8765)
+    p_web.add_argument("--host", default="", help="Bind address (default 127.0.0.1)")
+    p_web.add_argument("--token", default="", help="Bearer token (auto-generated if omitted)")
 
     sub.add_parser("tui", help="Start minimal TUI")
     sub.add_parser("repl", help="Start the interactive REPL")
@@ -45,6 +47,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_install = sub.add_parser("install", help="Install dependencies, LSP servers, and MCP servers")
     p_install.add_argument("--dry-run", action="store_true", help="Show what would be installed")
+    p_install.add_argument("--force", action="store_true", help="Run even if it ran recently")
 
     p_reuse = sub.add_parser("reuse", help="Find existing code to reuse for a task")
     p_reuse.add_argument("task", nargs="+", help="What you intend to do")
@@ -68,7 +71,7 @@ def main():
         _explore(args.path)
         return
     if args.cmd == "web":
-        _web(args.port)
+        _web(args)
         return
     if args.cmd == "tui":
         _tui()
@@ -136,7 +139,8 @@ async def _run(args):
                                   install_dependencies=cfg.auto_install,
                                   install_lsp=cfg.auto_install_lsp,
                                   install_mcp=cfg.auto_install_mcp,
-                                  dry_run=False).bootstrap(cfg.mcp_servers)
+                                  dry_run=False,
+                                  interval_hours=cfg.auto_install_interval_hours).bootstrap(cfg.mcp_servers)
     if report.installed:
         print(f"Installed: {', '.join(report.installed)}")
 
@@ -144,7 +148,12 @@ async def _run(args):
     await catalogue.refresh(force=args.refresh_catalogue)
 
     reg = ToolRegistry.get_instance()
-    register_default_tools(reg)
+    reg.allow_dynamic_tools = cfg.allow_dynamic_tools
+    from .execution import ExecutionContext
+    exec_ctx = ExecutionContext(root=cfg.workspace, timeout=cfg.max_iterations * 30,
+                                sandbox_enabled=cfg.sandbox_enabled,
+                                allow_host_execution=cfg.allow_host_execution)
+    register_default_tools(reg, context=exec_ctx)
 
     provider = _provider_for(cfg, args.provider, args.model, args.base_url)
     goal = " ".join(args.goal)
@@ -185,9 +194,9 @@ def _explore(path):
     print(f"Explored {path}: {n} symbols indexed into memory.")
 
 
-def _web(port):
+def _web(args):
     from .ui.web import serve
-    serve(port=port)
+    serve(port=args.port, host=args.host or None, token=args.token or None)
 
 
 def _tui():
@@ -315,7 +324,9 @@ def _install(args):
     from .audit_log import AuditLog
     cfg = load_config()
     audit = AuditLog(cfg.audit_log_path)
-    report = EnvironmentBootstrap(cfg.workspace, audit_log=audit, dry_run=args.dry_run).bootstrap(cfg.mcp_servers)
+    report = EnvironmentBootstrap(cfg.workspace, audit_log=audit, dry_run=args.dry_run,
+                                  interval_hours=cfg.auto_install_interval_hours
+                                  ).bootstrap(cfg.mcp_servers, force=args.force)
     print("installed:", report.installed)
     print("skipped:", report.skipped)
     if report.failed:

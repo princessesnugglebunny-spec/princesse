@@ -130,29 +130,33 @@ class ToolEntry:
 
 
 class ToolRegistry:
-    _instance: Optional["ToolRegistry"] = None
+    """Registry of callable tools with OpenAI-compatible schemas.
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
+    Instances are independent: ``ToolRegistry()`` creates a fresh registry and
+    ``ToolRegistry.get_instance()`` returns the process-wide default used by
+    the helper packs.
+    """
 
-    def __init__(self):
-        if self._initialized:
-            return
+    _default: Optional["ToolRegistry"] = None
+
+    def __init__(self, allow_dynamic_tools: bool = False):
         self._tools: dict[str, ToolEntry] = {}
         self._categories: dict[ToolCategory, set[str]] = {c: set() for c in ToolCategory}
         self.metrics = ToolMetrics()
         self._sandbox_isolator = None
         self._event_bus = None
-        self._initialized = True
+        self.allow_dynamic_tools = allow_dynamic_tools
 
     @classmethod
     def get_instance(cls) -> "ToolRegistry":
-        if cls._instance is None:
-            cls._instance = ToolRegistry()
-        return cls._instance
+        if cls._default is None:
+            cls._default = ToolRegistry()
+        return cls._default
+
+    @classmethod
+    def set_default(cls, registry: "ToolRegistry") -> "ToolRegistry":
+        cls._default = registry
+        return registry
 
     def reset(self):
         self._tools.clear()
@@ -272,6 +276,9 @@ class ToolRegistry:
     def register_synthesized(self, name: str, function: Callable, description: str = "",
                             parameters: list[ToolParameter] | None = None,
                             metadata: dict[str, Any] | None = None) -> ToolEntry:
+        if not self.allow_dynamic_tools:
+            raise PermissionError(
+                "dynamic tool creation is disabled; enable allow_dynamic_tools explicitly")
         return self.register(name=name, function=function, description=description,
                             category=ToolCategory.SYNTHESIZED,
                             parameters=parameters, tags=["synthesized"],

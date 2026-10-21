@@ -146,39 +146,105 @@ class SkillVerifier:
 
 
 class SandboxIsolator:
-    """Execute tools in a restricted subprocess with resource limits.
+    """Execute commands and tools in a restricted subprocess.
 
-    The tool callable must be importable as ``module.function`` from the
-    workspace root; lambdas and closures registered in a ToolRegistry cannot
-    be resolved in the child process and will raise there.
+    Restrictions applied:
+      * the process runs with the workspace as its working directory
+      * the environment is scrubbed to a minimal allowlist
+      * address space, CPU time and process count are capped via ``setrlimit``
+
+    Network isolation is *not* provided by this mechanism; that requires a
+    container or a network namespace. ``network_isolated`` reports which mode
+    is in effect so callers can surface it honestly.
     """
 
-    def __init__(self, root: Path | str, timeout: int = 30, memory_mb: int = 512, network: bool = False):
-        self.root = Path(root)
+    def __init__(self, root: Path | str, timeout: int = 30, memory_mb: int = 2048,
+                 network: bool = False, env: dict[str, str] | None = None):
+        self.root = Path(root).resolve()
         self.timeout = timeout
         self.memory_mb = memory_mb
         self.network = network
+        self.env = env or {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                           "HOME": str(self.root),
+                           "LANG": os.environ.get("LANG", "C.UTF-8"),
+                           "TMPDIR": str(self.root)}
+
+    @property
+    def network_isolated(self) -> bool:
+        return self.network
 
     def _preexec(self):
         import resource
 
+        memory_bytes = self.memory_mb * 1024 * 1024
+        cpu = self.timeout
+
         def _limit():
             try:
-                limit = self.memory_mb * 1024 * 1024
-                resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+                resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
             except (ValueError, OSError):
                 pass
             try:
-                resource.setrlimit(resource.RLIMIT_CPU, (self.timeout, self.timeout))
+                resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
             except (ValueError, OSError):
                 pass
-            os_setsid = getattr(__import__("os"), "setsid", None)
-            if os_setsid:
+            # RLIMIT_NPROC is deliberately not set: it counts every process of
+            # the user, not this process tree, and would block fork entirely.
+            setsid = getattr(os, "setsid", None)
+            if setsid:
                 try:
-                    os_setsid()
+                    setsid()
                 except OSError:
                     pass
         return _limit
+
+    def run_command_sync(self, command: str, timeout: int | None = None) -> dict[str, Any]:
+        """Synchronous variant used by the sync tool surface."""
+        import subprocess
+        limit = timeout or self.timeout
+        kwargs: dict[str, Any] = {}
+        if os.name == "posix":
+            kwargs["preexec_fn"] = self._preexec()
+        try:
+            proc = subprocess.run(["/bin/sh", "-c", command], cwd=str(self.root), env=self.env,
+                                  capture_output=True, text=True, timeout=limit, **kwargs)
+        except subprocess.TimeoutExpired:
+            return {"returncode": -1, "stdout": "", "stderr": "timeout", "sandboxed": True}
+        except (OSError, ValueError) as e:
+            return {"returncode": -1, "stdout": "", "stderr": f"sandbox unavailable: {e}",
+                    "sandboxed": True}
+        return {"returncode": proc.returncode, "stdout": proc.stdout[-8000:],
+                "stderr": proc.stderr[-4000:], "sandboxed": True}
+
+    async def execute_command(self, command: str, timeout: int | None = None) -> dict[str, Any]:
+        """Run a shell command inside the sandbox and return captured output."""
+        import asyncio
+        limit = timeout or self.timeout
+        kwargs: dict[str, Any] = {}
+        if os.name == "posix":
+            kwargs["preexec_fn"] = self._preexec()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "/bin/sh", "-c", command, cwd=str(self.root),
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                env=self.env, **kwargs,
+            )
+        except (OSError, ValueError) as e:
+            return {"returncode": -1, "stdout": "", "stderr": f"sandbox unavailable: {e}"}
+        try:
+            out, err = await asyncio.wait_for(proc.communicate(), timeout=limit)
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            return {"returncode": -1, "stdout": "", "stderr": "timeout"}
+        return {
+            "returncode": proc.returncode,
+            "stdout": out.decode(errors="replace")[-8000:],
+            "stderr": err.decode(errors="replace")[-4000:],
+            "sandboxed": True,
+        }
 
     async def execute_tool(self, name: str, function, args: dict[str, Any], spec: dict[str, Any] | None = None) -> Any:
         """Run a tool callable in a subprocess worker with limits applied."""

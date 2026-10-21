@@ -30,6 +30,10 @@ class Config:
     context_budget_tokens: int = 4000
     max_iterations: int = 10
     sandbox_enabled: bool = True
+    allow_host_execution: bool = False
+    allow_dynamic_tools: bool = False
+    web_token: str = ""
+    web_host: str = "127.0.0.1"
     allowed_commands: list[str] = field(default_factory=lambda: ["ls", "cat", "head", "tail", "grep", "find", "wc", "echo", "pwd", "git", "python3", "pytest", "ruff", "mypy", "pyright", "node", "npm", "make"])
     denied_patterns: list[str] = field(default_factory=lambda: [r"\brm\s+-rf\s+/", r"\bsudo\b", r"\bmkfs\b", r"\bdd\s+if=", r":\(\)\{", r"\bcurl\b.*\|\s*(ba)?sh", r"\bwget\b.*\|\s*(ba)?sh", r"\bchmod\s+777\s+/"])
     providers: dict[str, ProviderConfig] = field(default_factory=dict)
@@ -40,6 +44,7 @@ class Config:
     auto_install: bool = True
     auto_install_lsp: bool = True
     auto_install_mcp: bool = True
+    auto_install_interval_hours: float = 24.0
     mcp_servers: list[str] = field(default_factory=list)
     rag_enabled: bool = True
     rag_max_chunks: int = 20000
@@ -127,6 +132,10 @@ def _apply_env(cfg: Config) -> None:
         "PRINCESSE_CONTEXT_BUDGET": ("context_budget_tokens", "int"),
         "PRINCESSE_MAX_ITERATIONS": ("max_iterations", "int"),
         "PRINCESSE_SANDBOX": ("sandbox_enabled", "bool"),
+        "PRINCESSE_ALLOW_HOST_EXECUTION": ("allow_host_execution", "bool"),
+        "PRINCESSE_ALLOW_DYNAMIC_TOOLS": ("allow_dynamic_tools", "bool"),
+        "PRINCESSE_WEB_TOKEN": ("web_token", "str"),
+        "PRINCESSE_WEB_HOST": ("web_host", "str"),
         "PRINCESSE_HOOKS_ENABLED": ("hooks_enabled", "bool"),
         "PRINCESSE_AUTO_INSTALL": ("auto_install", "bool"),
         "PRINCESSE_CATALOGUE_URL": ("catalogue_url", "str"),

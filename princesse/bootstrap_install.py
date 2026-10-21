@@ -56,13 +56,17 @@ class EnvironmentBootstrap:
 
     def __init__(self, project_root: Path | str = ".", audit_log=None,
                  install_dependencies: bool = True, install_lsp: bool = True,
-                 install_mcp: bool = True, dry_run: bool = False):
+                 install_mcp: bool = True, dry_run: bool = False,
+                 state_path: Path | str = "~/.princesse/bootstrap.json",
+                 interval_hours: float = 24.0):
         self.project_root = Path(project_root)
         self.audit_log = audit_log
         self.install_dependencies = install_dependencies
         self.install_lsp = install_lsp
         self.install_mcp = install_mcp
         self.dry_run = dry_run
+        self.state_path = Path(state_path).expanduser()
+        self.interval_hours = interval_hours
 
     def _log(self, kind: str, target: str, command: str, ok: bool):
         if self.audit_log:
@@ -176,11 +180,43 @@ class EnvironmentBootstrap:
                 report.failed.append((f"mcp:{cmd[0]}", out[:300]))
         return report
 
-    def bootstrap(self, mcp_servers: list[str] | None = None) -> InstallReport:
+    def _state(self) -> dict[str, Any]:
+        if not self.state_path.exists():
+            return {}
+        try:
+            return json.loads(self.state_path.read_text())
+        except Exception:
+            return {}
+
+    def _save_state(self, state: dict[str, Any]):
+        try:
+            self.state_path.parent.mkdir(parents=True, exist_ok=True)
+            self.state_path.write_text(json.dumps(state, indent=2))
+        except OSError:
+            pass
+
+    def recently_ran(self) -> bool:
+        """True when the bootstrap ran within the configured interval."""
+        import time
+        state = self._state()
+        last = state.get("last_run", 0)
+        if not last:
+            return False
+        return (time.time() - last) < self.interval_hours * 3600
+
+    def bootstrap(self, mcp_servers: list[str] | None = None, force: bool = False) -> InstallReport:
         report = InstallReport()
+        if not force and self.recently_ran():
+            report.skipped.append("bootstrap (ran recently)")
+            return report
         self.ensure_dependencies(report)
         self.ensure_lsp(report=report)
         self.ensure_mcp(mcp_servers, report=report)
+        import time
+        state = self._state()
+        state["last_run"] = time.time()
+        state["installed"] = report.installed
+        self._save_state(state)
         return report
 
 
