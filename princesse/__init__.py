@@ -15,6 +15,9 @@ from .skills import Skill, SkillRegistry, parse_skill
 from .skill_download import SkillDownloader
 from .tool_synthesis import ToolSynthesizer
 from .codebase_explore import CodebaseExplorer, extract_symbols
+from .hf_download import HFDownloader
+from .models_ini import ModelsIni
+from .coding_agent import CodingAgent, CodeResult, solve_code
 from .capabilities import register_capability_tools
 from .execution import register_execution_tools
 from .browser import register_browser_tools
