@@ -75,10 +75,7 @@ class CommandPolicy:
         for pattern in self.denied_patterns:
             if pattern.search(command):
                 return PolicyDecision(False, f"denied by pattern: {pattern.pattern}")
-        try:
-            parts = command.split()
-        except Exception:
-            return PolicyDecision(False, "unparsable command")
+        parts = command.split()
         if not parts:
             return PolicyDecision(False, "empty command")
         program = Path(parts[0]).name

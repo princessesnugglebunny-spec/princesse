@@ -23,3 +23,9 @@ princesse = "princesse.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["princesse*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "network: live tests that reach the network or a local model server (opt-in)",
+]

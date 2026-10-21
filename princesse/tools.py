@@ -271,7 +271,9 @@ class ToolRegistry:
         func = entry.function
         if asyncio.iscoroutinefunction(func):
             return await func(**args)
-        return func(**args)
+        # Synchronous tools run in a worker thread so that parallel tool calls
+        # genuinely overlap instead of serialising behind the event loop.
+        return await asyncio.to_thread(func, **args)
 
     def register_synthesized(self, name: str, function: Callable, description: str = "",
                             parameters: list[ToolParameter] | None = None,
