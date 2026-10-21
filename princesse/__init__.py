@@ -27,6 +27,8 @@ from .context_pruning import ContextPruner
 from .context_optimization import (ImportanceScorer, SemanticDeduplicator, TokenBudgetAllocator,
     SlidingWindowCompressor, OutputTruncator, AdaptiveMaxTokens, ConversationSummarizer)
 from .llm_optimization import RequestCoalescer, EarlyStopper, SpeculativePrefetcher
+from .small_model_booster import (SmallModelBooster, BoosterConfig, StructuredReasoningAgent,
+    EnsembleAgent, ProgressiveRefinementAgent, create_boosted_agent, FEW_SHOT_EXAMPLES)
 from .hf_download import HFDownloader
 from .models_ini import ModelsIni
 from .coding_agent import CodingAgent, CodeResult, solve_code

@@ -31,23 +31,31 @@ class Agent:
         self.system_prompt = system_prompt
         self.max_iterations = max_iterations
 
-    async def run(self, goal: str) -> AgentResult:
+    async def run(self, goal: str, use_optimizations: bool = True) -> AgentResult:
         self.context.append("user", goal)
         tool_calls_log: list[dict[str, Any]] = []
         final_answer = ""
         iteration = 0
         for iteration in range(self.max_iterations):
-            messages = [{"role": "system", "content": self.system_prompt}] + self.context.get_messages_for_model()
+            # Get messages with optional pruning
+            if use_optimizations:
+                from .context_optimization import SlidingWindowCompressor
+                messages = [{"role": "system", "content": self.system_prompt}]
+                messages.extend(SlidingWindowCompressor.compress(self.context, keep_last=4))
+            else:
+                messages = [{"role": "system", "content": self.system_prompt}] + self.context.get_messages_for_model()
+            
             data = await self.provider.complete(messages, self.tools.to_openai_tools())
             content, calls = self.provider.parse_response(data) if hasattr(self.provider, "parse_response") else self._parse(data)
             if calls:
                 for call in calls:
                     tool_calls_log.append(call)
-                # execute tool calls in parallel
                 async def _exec(call):
                     try:
                         r = await self.tools.execute(call["name"], call["arguments"])
-                        return json.dumps(r) if not isinstance(r, str) else r
+                        from .context_optimization import OutputTruncator
+                        result_text = json.dumps(r) if not isinstance(r, str) else r
+                        return OutputTruncator.truncate_tool_output(result_text)
                     except Exception as e:
                         return f"Error: {e}"
                 results = await asyncio.gather(*[_exec(c) for c in calls])
@@ -56,6 +64,7 @@ class Agent:
                 continue
             final_answer = content
             self.context.append("assistant", content)
+            # if no tool calls, the model has finished - break
             break
         if not final_answer:
             final_answer = "Reached iteration limit without a final answer."

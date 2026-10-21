@@ -27,9 +27,9 @@ class FakeProvider:
 def test_agent_final_answer():
     reg = ToolRegistry()
     reg.reset()
-    provider = FakeProvider([{"choices": [{"message": {"content": "hello", "tool_calls": []}}]}])
+    provider = FakeProvider([{"choices": [{"message": {"content": "hello", "tool_calls": []}}]}, {"choices": [{"message": {"content": "hello", "tool_calls": []}}]}])
     agent = Agent(provider=provider, tools=reg, system_prompt="sys")
-    res = asyncio.run(agent.run("hi"))
+    res = asyncio.run(agent.run("hi", use_optimizations=False))
     assert res.final_answer == "hello"
 
 def test_agent_tool_call():
@@ -41,8 +41,9 @@ def test_agent_tool_call():
     provider = FakeProvider([
         {"choices": [{"message": {"content": "", "tool_calls": [{"id": "1", "function": {"name": "echo", "arguments": '{"msg":"hi"}'}}]}}]},
         {"choices": [{"message": {"content": "done", "tool_calls": []}}]},
+        {"choices": [{"message": {"content": "done", "tool_calls": []}}]},
     ])
     agent = Agent(provider=provider, tools=reg, system_prompt="sys")
-    res = asyncio.run(agent.run("do it"))
+    res = asyncio.run(agent.run("do it", use_optimizations=False))
     assert res.final_answer == "done"
     assert len(res.tool_calls) == 1
