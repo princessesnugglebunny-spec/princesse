@@ -25,7 +25,7 @@ class Agent:
     def __init__(self, provider, tools: ToolRegistry | None = None, context: ContextWindow | None = None,
                  memory: MemoryStore | None = None, system_prompt: str = "You are a helpful agent.",
                  max_iterations: int = 10, hook_engine=None, hook_executor=None,
-                 audit_log=None, team=None, event_bus=None):
+                 audit_log=None, team=None, event_bus=None, stream_enabled: bool = False):
         self.provider = provider
         self.tools = tools or ToolRegistry.get_instance()
         self.context = context or ContextWindow()
@@ -37,6 +37,7 @@ class Agent:
         self.audit_log = audit_log
         self.team = team
         self.event_bus = event_bus
+        self.stream_enabled = stream_enabled
         self.hook_matches: list[Any] = []
         self.active_tools: set[str] | None = None
         self.always_tools: set[str] = set()
@@ -105,13 +106,17 @@ class Agent:
                     messages=len(messages),
                     tools=len(self.tools.to_openai_tools(self.active_tools)),
                     latency_ms=(time.monotonic() - started) * 1000)
-            data = await provider.complete(messages, self.tools.to_openai_tools(self.active_tools))
-            if self.audit_log:
-                self.audit_log.log_llm_call(
-                    model=getattr(self.provider, "model", "unknown"),
-                    provider=getattr(self.provider, "base_url", "unknown"),
-                    latency_ms=(time.monotonic() - started) * 1000)
-            content, calls = provider.parse_response(data) if hasattr(provider, "parse_response") else self._parse(data)
+            if self.stream_enabled and hasattr(provider, "stream"):
+                content, calls = await self._stream_complete(provider, messages)
+            else:
+                data = await provider.complete(messages, self.tools.to_openai_tools(self.active_tools))
+                if self.audit_log:
+                    self.audit_log.log_llm_call(
+                        model=getattr(self.provider, "model", "unknown"),
+                        provider=getattr(self.provider, "base_url", "unknown"),
+                        latency_ms=(time.monotonic() - started) * 1000)
+                content, calls = (provider.parse_response(data) if hasattr(provider, "parse_response")
+                                  else self._parse(data))
             if self.event_bus:
                 self.event_bus.llm_response(content, calls)
             if calls:
@@ -152,6 +157,25 @@ class Agent:
                                           self.context.budget_tokens)
         return AgentResult(final_answer=final_answer, iterations=iteration + 1,
                            tool_calls=tool_calls_log, messages=self.context.get_messages_for_model())
+
+    async def _stream_complete(self, provider, messages) -> tuple[str, list[dict[str, Any]]]:
+        """Stream a completion, emitting deltas for live rendering."""
+        parts: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
+        final_content = ""
+        async for event in provider.stream(messages, self.tools.to_openai_tools(self.active_tools)):
+            kind = event.get("type")
+            if kind == "delta":
+                parts.append(event.get("text", ""))
+                if self.event_bus:
+                    self.event_bus.llm_delta(event.get("text", ""))
+            elif kind == "tool_call":
+                tool_calls.append({"id": event.get("id"), "name": event.get("name", ""),
+                                   "arguments": event.get("arguments", {})})
+            elif kind == "done":
+                final_content = event.get("content", "")
+                tool_calls = event.get("tool_calls") or tool_calls
+        return final_content or "".join(parts), tool_calls
 
     def _parse(self, data):
         choice = data["choices"][0]["message"]

@@ -151,6 +151,8 @@ class Repl:
             for c in calls:
                 self.console.print(f"[yellow]tool call[/yellow] {c.get('name')} "
                                    f"{str(c.get('arguments'))[:200]}")
+        elif kind == "llm_delta":
+            self.console.print(event.data.get("text", ""), end="", markup=False, highlight=False)
         elif kind == "tool_start":
             self.console.print(f"[yellow]→ {d.get('tool')}[/yellow] {str(d.get('args'))[:200]}")
         elif kind == "tool_end":

@@ -21,6 +21,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--no-boost", action="store_true", help="Disable small-model boosting")
     p_run.add_argument("--team", action="store_true", help="Use model teaming (ensemble across providers)")
     p_run.add_argument("--refresh-catalogue", action="store_true", help="Force catalogue refresh before running")
+    p_run.add_argument("--stream", action="store_true", help="Stream the model output as it arrives")
 
     p_explore = sub.add_parser("explore", help="Explore a codebase and populate memory")
     p_explore.add_argument("path", help="Path to explore")
@@ -159,7 +160,7 @@ async def _run(args):
     goal = " ".join(args.goal)
     agent = Agent(provider=provider, tools=reg, system_prompt="You are a helpful agent.",
                   max_iterations=cfg.max_iterations, audit_log=audit,
-                  hook_engine=hook_engine, event_bus=bus)
+                  hook_engine=hook_engine, event_bus=bus, stream_enabled=args.stream)
 
     if args.team:
         from .providers import ModelTeam, ProviderRegistry
@@ -228,7 +229,7 @@ def _repl():
         provider = _provider_for(cfg, cfg.provider, cfg.model, "")
         return Agent(provider=provider, tools=reg, memory=MemoryStore(),
                      system_prompt="You are a helpful agent.", max_iterations=cfg.max_iterations,
-                     hook_engine=hook_engine, event_bus=bus)
+                     hook_engine=hook_engine, event_bus=bus, stream_enabled=True)
 
     repl = Repl(agent_factory=factory, tools=reg, skills=SkillRegistry(),
                  memory=MemoryStore(), catalogue=catalogue,

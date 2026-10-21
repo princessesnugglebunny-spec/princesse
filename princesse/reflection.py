@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from .agent import Agent
+from .logging_setup import get_logger, log_swallowed
+
+logger = get_logger("reflection")
 
 
 class ReflectionLoop:
@@ -26,7 +29,8 @@ class ReflectionLoop:
                     None,
                 )
                 content = data["choices"][0]["message"].get("content", "")
-            except Exception:
+            except Exception as e:
+                log_swallowed(logger, "critique call failed", e, goal=goal[:120])
                 break
             if content.strip().upper().startswith("OK"):
                 break

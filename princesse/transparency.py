@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from .audit_log import redact, redact_mapping
+from .logging_setup import get_logger, log_swallowed
+
+logger = get_logger("transparency")
 
 
 @dataclass
@@ -45,8 +48,8 @@ class EventBus:
         for fn in list(self._subscribers):
             try:
                 fn(event)
-            except Exception:
-                continue
+            except Exception as e:
+                log_swallowed(logger, "event subscriber failed", e, kind=event.kind, seq=event.seq)
         return event
 
     def history(self, kind: str | None = None) -> list[Event]:
@@ -71,6 +74,9 @@ class EventBus:
 
     def llm_response(self, content: str, tool_calls: list[dict], **extra: Any):
         return self.emit("llm_response", content=content, tool_calls=tool_calls, **extra)
+
+    def llm_delta(self, text: str, **extra: Any):
+        return self.emit("llm_delta", text=text, **extra)
 
     def tool_start(self, name: str, args: dict, **extra: Any):
         return self.emit("tool_start", tool=name, args=args, **extra)

@@ -27,8 +27,8 @@ from .context_pruning import ContextPruner
 from .context_optimization import (ImportanceScorer, SemanticDeduplicator, TokenBudgetAllocator,
     SlidingWindowCompressor, OutputTruncator, AdaptiveMaxTokens, ConversationSummarizer)
 from .llm_optimization import RequestCoalescer, EarlyStopper, SpeculativePrefetcher
-from .small_model_booster import (SmallModelBooster, BoosterConfig, StructuredReasoningAgent,
-    EnsembleAgent, ProgressiveRefinementAgent, create_boosted_agent, FEW_SHOT_EXAMPLES)
+from .small_model_booster import (SmallModelBooster, BoosterConfig, create_boosted_agent, FEW_SHOT_EXAMPLES)
+from .strategies import StructuredReasoningAgent, EnsembleAgent, ProgressiveRefinementAgent
 from .hf_download import HFDownloader
 from .models_ini import ModelsIni
 from .coding_agent import CodingAgent, CodeResult, solve_code
@@ -50,6 +50,7 @@ from .skill_catalogue import SkillCatalogue
 from .mcp_catalogue import MCPCatalogue
 from .bootstrap_install import EnvironmentBootstrap
 from .reuse import ReuseAdvisor, PatternLibrary, extract_signatures
+from .logging_setup import get_logger, configure as configure_logging
 
 __all__ = [
     "ContextWindow", "HierarchicalSummarizer", "ContextMessage", "Summary", "SummaryTier",
@@ -71,6 +72,7 @@ __all__ = [
     "EventBus", "Event", "TranscriptWriter",
     "SkillCatalogue", "MCPCatalogue", "EnvironmentBootstrap",
     "ReuseAdvisor", "PatternLibrary", "extract_signatures",
+    "get_logger", "configure_logging",
     "ReflectionLoop", "register_git_tools", "register_lsp_tools", "lsp_diagnostics",
     "ToolResultCache", "MemoryConsolidator", "TDDCycle",
     "PromptCompressor", "ChainOfThought", "FewShotSelector", "SelfConsistency",

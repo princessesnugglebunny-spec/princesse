@@ -7,6 +7,10 @@ import subprocess
 import threading
 from typing import Any
 
+from .logging_setup import get_logger, log_swallowed
+
+logger = get_logger("mcp_client")
+
 
 class MCPClient:
     def __init__(self, command: list[str]):
@@ -26,7 +30,8 @@ class MCPClient:
             self._request("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
                                          "clientInfo": {"name": "princesse", "version": "0.1"}})
             self._notify("notifications/initialized", {})
-        except Exception:
+        except Exception as e:
+            log_swallowed(logger, "mcp initialize failed", e, command=self.command[:3])
             return False
         return True
 

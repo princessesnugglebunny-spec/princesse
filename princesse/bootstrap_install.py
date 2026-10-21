@@ -10,6 +10,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .logging_setup import get_logger, log_swallowed
+
+logger = get_logger("bootstrap_install")
+
 LSP_SERVERS: dict[str, dict[str, Any]] = {
     "python": {"command": "pyright", "install": ["pip", "install", "pyright"], "check": "pyright --version"},
     "typescript": {"command": "typescript-language-server", "install": ["npm", "install", "-g", "typescript-language-server typescript"], "check": "typescript-language-server --version"},
@@ -46,8 +50,10 @@ def _run(cmd: list[str], timeout: int = 300, cwd: str | None = None) -> tuple[in
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
         return proc.returncode, (proc.stdout + proc.stderr)[-2000:]
     except FileNotFoundError:
+        logger.warning("installer not available: %s", cmd[0])
         return 127, f"command not found: {cmd[0]}"
     except Exception as e:
+        log_swallowed(logger, "installer failed", e, command=cmd[0])
         return 1, str(e)
 
 
