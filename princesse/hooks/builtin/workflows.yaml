@@ -1,0 +1,49 @@
+hooks:
+  - id: refactor_workflow
+    name: Refactor workflow
+    description: Load refactoring tools and knowledge extraction.
+    triggers:
+      - words: [refactor, cleanup, restructure]
+        order: loose
+        proximity: 50
+        threshold: 0.7
+        min_matches: 1
+        synonyms:
+          refactor: [restructure, tidy, reorganize, simplify]
+    actions:
+      preload_tools: [complexity_evaluate, knowledge_extract, lsp_diagnostics, run_python]
+      preload_skills: [refactoring_patterns]
+      inject_context: codebase_patterns
+      reuse_existing: "refactor this code"
+
+  - id: research_task
+    name: Research task
+    description: Load browsing and documentation tools for investigation work.
+    triggers:
+      - words: [research, investigate, compare, find, docs]
+        order: loose
+        proximity: 60
+        threshold: 0.6
+        min_matches: 1
+        synonyms:
+          research: [explore, survey, study, analyze]
+    actions:
+      preload_tools: [browser_open, list_dir, read_file]
+      preload_skills: [research_method]
+      inject_context: codebase_patterns
+
+  - id: release_flow
+    name: Release flow
+    description: Load versioning and tagging tools for a release.
+    triggers:
+      - words: [release, version, publish, ship, tag]
+        order: loose
+        proximity: 50
+        threshold: 0.7
+        min_matches: 1
+        synonyms:
+          release: [deploy, rollout, cut]
+    actions:
+      preload_tools: [release_tag, git_status, git_log, canary_evaluate]
+      preload_skills: [release_checklist]
+      background: run_full_tests

@@ -1,0 +1,318 @@
+"""Semantic trigger hooks: fuzzy, order-flexible intent matching that acts before the LLM does."""
+
+from __future__ import annotations
+
+import asyncio
+import difflib
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+
+DEFAULT_SYNONYMS: dict[str, list[str]] = {
+    "error": ["exception", "failure", "traceback", "crash", "bug", "stacktrace"],
+    "fix": ["repair", "resolve", "patch", "correct", "heal"],
+    "test": ["spec", "pytest", "unittest", "assertion"],
+    "review": ["audit", "critique", "inspect", "evaluate"],
+    "refactor": ["restructure", "cleanup", "clean", "tidy", "reorganize"],
+    "debug": ["troubleshoot", "diagnose", "investigate"],
+    "security": ["vulnerability", "cve", "exploit", "injection"],
+    "performance": ["slow", "latency", "optimize", "profiling", "bottleneck"],
+    "deploy": ["release", "ship", "publish", "rollout"],
+    "research": ["investigate", "explore", "survey", "compare"],
+    "document": ["docs", "readme", "docstring", "writeup"],
+}
+
+
+@dataclass
+class TriggerSpec:
+    words: list[str] = field(default_factory=list)
+    order: str = "loose"            # "strict" | "loose"
+    proximity: int = 60             # max token gap between matches
+    threshold: float = 0.6          # fuzzy score gate
+    min_matches: int = 1
+    synonyms: dict[str, list[str]] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TriggerSpec":
+        return cls(
+            words=[str(w).lower() for w in data.get("words", [])],
+            order=str(data.get("order", "loose")).lower(),
+            proximity=int(data.get("proximity", 60)),
+            threshold=float(data.get("threshold", 0.6)),
+            min_matches=int(data.get("min_matches", 1)),
+            synonyms={str(k).lower(): [str(v).lower() for v in vs]
+                      for k, vs in (data.get("synonyms") or {}).items()},
+        )
+
+
+@dataclass
+class Hook:
+    id: str
+    name: str = ""
+    description: str = ""
+    triggers: list[TriggerSpec] = field(default_factory=list)
+    actions: dict[str, Any] = field(default_factory=dict)
+    enabled: bool = True
+    source: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], source: str = "") -> "Hook":
+        return cls(
+            id=str(data.get("id") or data.get("name", "hook")),
+            name=str(data.get("name", "")),
+            description=str(data.get("description", "")),
+            triggers=[TriggerSpec.from_dict(t) for t in data.get("triggers", [])],
+            actions=dict(data.get("actions", {})),
+            enabled=bool(data.get("enabled", True)),
+            source=source,
+        )
+
+
+@dataclass
+class HookMatch:
+    hook: Hook | None
+    score: float
+    matched_words: list[str] = field(default_factory=list)
+    positions: list[int] = field(default_factory=list)
+    trigger_index: int = 0
+
+    @property
+    def hook_id(self) -> str:
+        return self.hook.id if self.hook else ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"hook": self.hook_id, "score": round(self.score, 3),
+                "matched": self.matched_words, "positions": self.positions}
+
+
+def tokenize(text: str) -> list[str]:
+    return [m.group(0).lower() for m in TOKEN_RE.finditer(text)]
+
+
+def _expand(words: list[str], synonyms: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Map every accepted surface form to its canonical trigger word."""
+    out: dict[str, list[str]] = {}
+    for w in words:
+        out.setdefault(w, []).append(w)
+        for s in synonyms.get(w, []):
+            out.setdefault(s, []).append(w)
+    for canonical, alts in synonyms.items():
+        for alt in alts:
+            out.setdefault(alt, []).append(canonical)
+    return out
+
+
+class HookEngine:
+    """Loads hook packs and matches text against trigger specs."""
+
+    def __init__(self, directories: list[Path | str] | None = None):
+        self.hooks: dict[str, Hook] = {}
+        self.directories = [Path(d) for d in (directories or [])]
+        self.load_all()
+
+    def load_all(self) -> int:
+        self.hooks.clear()
+        for directory in self.directories:
+            if not directory or not Path(directory).exists():
+                continue
+            for yaml_file in sorted(Path(directory).rglob("*.yaml")):
+                try:
+                    payload = yaml.safe_load(yaml_file.read_text()) or {}
+                except Exception:
+                    continue
+                entries = payload.get("hooks", payload if isinstance(payload, list) else [])
+                if isinstance(entries, dict):
+                    entries = [entries]
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    hook = Hook.from_dict(entry, source=str(yaml_file))
+                    self.hooks[hook.id] = hook
+        return len(self.hooks)
+
+    def add(self, hook: Hook) -> Hook:
+        self.hooks[hook.id] = hook
+        return hook
+
+    def list_all(self) -> list[Hook]:
+        return list(self.hooks.values())
+
+    def match(self, text: str, top: int = 5) -> list[HookMatch]:
+        tokens = tokenize(text)
+        results: list[HookMatch] = []
+        for hook in self.hooks.values():
+            if not hook.enabled:
+                continue
+            best: HookMatch | None = None
+            for idx, trigger in enumerate(hook.triggers):
+                m = self._match_trigger(trigger, tokens)
+                if m and (best is None or m.score > best.score):
+                    m.trigger_index = idx
+                    best = m
+            if best is not None:
+                best.hook = hook
+                results.append(best)
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:top]
+
+    def _match_trigger(self, trigger: TriggerSpec, tokens: list[str]) -> HookMatch | None:
+        if not trigger.words:
+            return None
+        accepted = _expand(trigger.words, {**DEFAULT_SYNONYMS, **trigger.synonyms})
+        positions: dict[str, int] = {}
+        matched_canonical: list[str] = []
+        fuzzy_hits = 0
+
+        for i, tok in enumerate(tokens):
+            if tok in accepted:
+                canonical = accepted[tok][0]
+                if canonical not in positions:
+                    positions[canonical] = i
+                    matched_canonical.append(canonical)
+                continue
+            # fuzzy: find a close trigger word
+            best_ratio, best_word = 0.0, ""
+            for surface in accepted:
+                ratio = difflib.SequenceMatcher(None, tok, surface).ratio()
+                if ratio > best_ratio:
+                    best_ratio, best_word = ratio, surface
+            if best_ratio >= trigger.threshold and best_word not in positions:
+                positions[best_word] = i
+                matched_canonical.append(best_word)
+                fuzzy_hits += 1
+
+        if len(positions) < max(1, trigger.min_matches):
+            return None
+
+        ordered = sorted(positions.values())
+        if trigger.order == "strict":
+            canonical_order = [w for w, _ in sorted(positions.items(), key=lambda kv: kv[1])]
+            expected = [w for w in trigger.words if w in canonical_order]
+            if len(expected) > 1 and canonical_order != expected:
+                return None
+
+        if len(ordered) > 1:
+            gaps = [ordered[i + 1] - ordered[i] for i in range(len(ordered) - 1)]
+            if max(gaps) > trigger.proximity:
+                return None
+
+        coverage = len(positions) / len(trigger.words)
+        base = min(1.0, coverage)
+        if fuzzy_hits:
+            base *= (1.0 - 0.1 * fuzzy_hits)
+        score = round(base, 4)
+        if score < trigger.threshold:
+            return None
+        return HookMatch(hook=None, score=score, matched_words=sorted(positions.keys()), positions=ordered)
+
+
+@dataclass
+class HookOutcome:
+    applied: list[str] = field(default_factory=list)
+    details: dict[str, Any] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+
+
+class HookExecutor:
+    """Applies hook actions to tools, skills, memory, profiles, and background tasks."""
+
+    def __init__(self, tools=None, skills=None, memory=None, profiles: dict[str, Any] | None = None,
+                 background: dict[str, Any] | None = None, advisor=None):
+        self.tools = tools
+        self.skills = skills
+        self.memory = memory
+        self.profiles = profiles or {}
+        self.background = background or {}
+        self.advisor = advisor
+        self.last_outcome = HookOutcome()
+
+    def apply(self, matches: list[HookMatch]) -> HookOutcome:
+        outcome = HookOutcome()
+        for match in matches:
+            if match.hook is None:
+                continue
+            actions = match.hook.actions or {}
+            for action, value in actions.items():
+                try:
+                    handler = getattr(self, f"_do_{action}", None)
+                    if handler is None:
+                        continue
+                    detail = handler(value)
+                    outcome.applied.append(f"{match.hook_id}:{action}")
+                    if detail:
+                        outcome.details[f"{match.hook_id}:{action}"] = detail
+                except Exception as e:
+                    outcome.errors.append(f"{match.hook_id}:{action}: {e}")
+        self.last_outcome = outcome
+        return outcome
+
+    def _do_preload_tools(self, names: list[str]) -> list[str]:
+        if self.tools is None:
+            return []
+        loaded = []
+        for name in names or []:
+            if self.tools.get(name):
+                loaded.append(name)
+        return loaded
+
+    def _do_preload_skills(self, names: list[str]) -> list[str]:
+        if self.skills is None:
+            return []
+        loaded = []
+        for name in names or []:
+            skill = self.skills.get(name)
+            if skill:
+                loaded.append(skill.name)
+        return loaded
+
+    def _do_inject_context(self, key: str) -> str:
+        if self.memory is None:
+            return ""
+        entries = self.memory.search(key)
+        return "\n".join(f"- {e.key}: {e.value}" for e in entries[:10])
+
+    def _do_switch_profile(self, name: str) -> str:
+        if name in self.profiles:
+            return name
+        return ""
+
+    def _do_reuse_existing(self, task: str) -> str:
+        if self.advisor is None:
+            return ""
+        return self.advisor.prompt_block(task)
+
+    def _do_background(self, name: str) -> str:
+        if name in self.background:
+            fn = self.background[name]
+            if asyncio.iscoroutinefunction(fn):
+                asyncio.get_event_loop().create_task(fn())
+            else:
+                asyncio.get_event_loop().create_task(asyncio.to_thread(fn))
+            return name
+        return ""
+
+    def prompt_injection(self, matches: list[HookMatch]) -> str:
+        """Render matched hooks as extra system guidance."""
+        if not matches:
+            return ""
+        lines = []
+        for match in matches:
+            if match.hook is None:
+                continue
+            skills = match.hook.actions.get("preload_skills") or []
+            for skill_name in skills:
+                skill = self.skills.get(skill_name) if self.skills else None
+                if skill:
+                    lines.append(f"[Skill: {skill.name}] {skill.content}")
+            ctx = self._do_inject_context(match.hook.actions.get("inject_context", "")) if match.hook.actions.get("inject_context") else ""
+            if ctx:
+                lines.append(f"[Context: {match.hook.actions.get('inject_context')}]\n{ctx}")
+            reuse = self._do_reuse_existing(match.hook.actions.get("reuse_existing", "")) if match.hook.actions.get("reuse_existing") else ""
+            if reuse:
+                lines.append(f"[Reuse existing code]\n{reuse}")
+        return "\n\n".join(lines)

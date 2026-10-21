@@ -6,7 +6,7 @@ import asyncio
 import time
 from typing import Any
 
-from .providers import OpenAICompatibleProvider
+from .llm import OpenAICompatibleProvider
 
 
 class InferenceOptimizer:

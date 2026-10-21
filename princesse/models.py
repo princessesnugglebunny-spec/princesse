@@ -108,6 +108,9 @@ class ModelProfile:
     cache_type: str = "f16"
     threads: int = 4
     batch_size: int = 512
+    speculative_model: Path | None = None
+    draft_max: int = 4
+    fit: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -144,6 +147,11 @@ class LlamaServer:
                 "-ngl", str(profile.gpu_layers), "-ctk", profile.cache_type, "-ctv", profile.cache_type,
                 "--host", self.host, "--port", str(self.port), "-t", str(profile.threads),
                 "-b", str(profile.batch_size)]
+        if profile.speculative_model:
+            args.extend(["--speculative-model", str(profile.speculative_model),
+                         "--draft-max", str(profile.draft_max)])
+        if profile.fit:
+            args.append("--fit")
         if extra_args:
             args.extend(extra_args)
         self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

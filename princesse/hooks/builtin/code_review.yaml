@@ -1,0 +1,33 @@
+hooks:
+  - id: code_review
+    name: Code review
+    description: Load review tooling when a review or pull request is requested.
+    triggers:
+      - words: [review, pull, request, pr]
+        order: loose
+        proximity: 60
+        threshold: 0.65
+        min_matches: 1
+        synonyms:
+          review: [audit, critique, inspect, evaluate, check]
+    actions:
+      preload_tools: [git_diff, git_status, lsp_diagnostics, complexity_evaluate]
+      preload_skills: [security_audit, style_review]
+      inject_context: codebase_patterns
+      background: run_full_tests
+
+  - id: security_audit
+    name: Security audit
+    description: Load security tooling when a vulnerability is mentioned.
+    triggers:
+      - words: [security, vulnerability, exploit, injection, xss, csrf]
+        order: loose
+        proximity: 60
+        threshold: 0.7
+        min_matches: 1
+        synonyms:
+          security: [vuln, cve, hardening, threat]
+    actions:
+      preload_tools: [pii_redact, knowledge_extract, git_diff]
+      preload_skills: [security_audit]
+      inject_context: recent_errors

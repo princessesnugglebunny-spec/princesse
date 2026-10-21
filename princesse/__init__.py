@@ -39,7 +39,17 @@ from .bootstrap import register_default_tools
 from .delegation import DelegationManager
 from .learning import LearningLoop
 from .mcp_client import MCPClient, MCPRegistry
-from .providers import LLMProvider, OpenAICompatibleProvider
+from .llm import LLMProvider, OpenAICompatibleProvider
+from .config import Config, load_config
+from .audit_log import AuditLog
+from .security import CommandPolicy, PathEscapeError, SkillVerifier, safe_path
+from .hooks import Hook, HookEngine, HookExecutor, HookMatch, TriggerSpec
+from .rag import Indexer, Retriever, Chunker
+from .transparency import EventBus, Event, TranscriptWriter
+from .skill_catalogue import SkillCatalogue
+from .mcp_catalogue import MCPCatalogue
+from .bootstrap_install import EnvironmentBootstrap
+from .reuse import ReuseAdvisor, PatternLibrary, extract_signatures
 
 __all__ = [
     "ContextWindow", "HierarchicalSummarizer", "ContextMessage", "Summary", "SummaryTier",
@@ -54,4 +64,11 @@ __all__ = [
     "register_execution_tools", "register_browser_tools", "register_default_tools",
     "DelegationManager", "LearningLoop", "MCPClient", "MCPRegistry",
     "LLMProvider", "OpenAICompatibleProvider",
+    "Config", "load_config", "AuditLog",
+    "CommandPolicy", "PathEscapeError", "SkillVerifier", "safe_path",
+    "Hook", "HookEngine", "HookExecutor", "HookMatch", "TriggerSpec",
+    "Indexer", "Retriever", "Chunker",
+    "EventBus", "Event", "TranscriptWriter",
+    "SkillCatalogue", "MCPCatalogue", "EnvironmentBootstrap",
+    "ReuseAdvisor", "PatternLibrary", "extract_signatures",
 ]

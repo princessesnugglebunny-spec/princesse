@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .agent import Agent
-from .providers import OpenAICompatibleProvider
+from .llm import OpenAICompatibleProvider
 from .prompt_optimization import ChainOfThought, FewShotSelector, SelfConsistency
 from .context import ContextWindow
 

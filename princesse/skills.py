@@ -13,6 +13,7 @@ class Skill:
     name: str
     description: str = ""
     content: str = ""
+    tags: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     path: Path | None = None
 

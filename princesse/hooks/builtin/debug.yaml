@@ -1,0 +1,19 @@
+hooks:
+  - id: debug_session
+    name: Debug session
+    description: Preload debugging tools when the user reports a failure.
+    triggers:
+      - words: [debug, error, failing, broken, crash]
+        order: loose
+        proximity: 80
+        threshold: 0.6
+        min_matches: 1
+        synonyms:
+          debug: [troubleshoot, diagnose, investigate, reproduce]
+          error: [exception, failure, traceback, stacktrace, bug]
+    actions:
+      preload_tools: [run_terminal, lsp_diagnostics, git_diff, read_file]
+      preload_skills: [debugging_workflow]
+      inject_context: recent_errors
+      switch_profile: debugger
+      background: run_tests
