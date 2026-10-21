@@ -2,7 +2,6 @@ import asyncio
 from princesse.learning import LearningLoop
 from princesse.memory import MemoryStore
 from princesse.skills import SkillRegistry
-from pathlib import Path
 from princesse.delegation import DelegationManager
 
 def test_learning_loop(tmp_path):

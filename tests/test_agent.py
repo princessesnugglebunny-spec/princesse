@@ -24,6 +24,35 @@ class FakeProvider:
             calls.append({"id": tc.get("id"), "name": fn["name"], "arguments": args})
         return content, calls
 
+def test_agent_scopes_tools_after_hook():
+    from princesse.hooks import Hook, HookEngine, HookExecutor, TriggerSpec
+    reg = ToolRegistry()
+    reg.reset()
+    reg.register("read_file", lambda path: "x", "read")
+    reg.register("other_tool", lambda: "y", "other")
+    engine = HookEngine()
+    engine.add(Hook(id="h", triggers=[TriggerSpec(words=["debug"])],
+                     actions={"preload_tools": ["read_file"]}))
+    executor = HookExecutor(tools=reg)
+
+    class P:
+        def __init__(self):
+            self.seen = None
+
+        async def complete(self, messages, tools=None):
+            self.seen = tools
+            return {"choices": [{"message": {"content": "ok", "tool_calls": []}}]}
+
+        def parse_response(self, data):
+            return data["choices"][0]["message"]["content"], []
+
+    provider = P()
+    agent = Agent(provider=provider, tools=reg, hook_engine=engine, hook_executor=executor)
+    asyncio.run(agent.run("debug this", use_optimizations=False))
+    assert provider.seen is not None
+    assert [t["function"]["name"] for t in provider.seen] == ["read_file"]
+
+
 def test_agent_final_answer():
     reg = ToolRegistry()
     reg.reset()

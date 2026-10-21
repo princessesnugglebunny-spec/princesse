@@ -1,5 +1,14 @@
 from princesse.capabilities import pii_redact, complexity_evaluate, release_tag, canary_evaluate, knowledge_extract
 
+def test_complexity_evaluate(tmp_path):
+    p = tmp_path / "m.py"
+    p.write_text("def f(a):\n    if a:\n        return 1\n    return 2\n")
+    r = complexity_evaluate(str(p))
+    assert r["functions"] == 1
+    assert r["branches"] >= 1
+    assert r["loc"] > 0
+
+
 def test_pii_redact():
     r = pii_redact("email a@b.com phone 123-456-7890")
     assert "REDACTED" in r["redacted_text"]

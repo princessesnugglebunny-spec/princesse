@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -130,7 +131,12 @@ class SkillVerifier:
 
 
 class SandboxIsolator:
-    """Execute tools in a restricted subprocess with resource limits."""
+    """Execute tools in a restricted subprocess with resource limits.
+
+    The tool callable must be importable as ``module.function`` from the
+    workspace root; lambdas and closures registered in a ToolRegistry cannot
+    be resolved in the child process and will raise there.
+    """
 
     def __init__(self, root: Path | str, timeout: int = 30, memory_mb: int = 512, network: bool = False):
         self.root = Path(root)
@@ -164,10 +170,13 @@ class SandboxIsolator:
         import asyncio
         payload = json.dumps({"name": name, "args": args})
         cmd = ["python3", "-c", _WORKER_SRC, payload, str(self.root)]
+        kwargs: dict[str, Any] = {}
+        if os.name == "posix":
+            kwargs["preexec_fn"] = self._preexec()
         proc = await asyncio.create_subprocess_exec(
             *cmd, cwd=str(self.root),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            preexec_fn=self._preexec() if hasattr(asyncio.subprocess, "PIPE") else None,
+            **kwargs,
         )
         try:
             out, err = await asyncio.wait_for(proc.communicate(), timeout=self.timeout)

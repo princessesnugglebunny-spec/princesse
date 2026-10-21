@@ -287,14 +287,18 @@ class HookExecutor:
         return self.advisor.prompt_block(task)
 
     def _do_background(self, name: str) -> str:
-        if name in self.background:
-            fn = self.background[name]
-            if asyncio.iscoroutinefunction(fn):
-                asyncio.get_event_loop().create_task(fn())
-            else:
-                asyncio.get_event_loop().create_task(asyncio.to_thread(fn))
-            return name
-        return ""
+        if name not in self.background:
+            return ""
+        fn = self.background[name]
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return ""
+        if asyncio.iscoroutinefunction(fn):
+            loop.create_task(fn())
+        else:
+            loop.create_task(asyncio.to_thread(fn))
+        return name
 
     def prompt_injection(self, matches: list[HookMatch]) -> str:
         """Render matched hooks as extra system guidance."""

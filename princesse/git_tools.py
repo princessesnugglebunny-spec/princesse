@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 from typing import Any
 
-from .tools import ToolRegistry, ToolCategory, ToolParameter
+from .tools import ToolCategory, ToolParameter, ToolRegistry
 
 
 def _run(args: list[str], cwd: str | None = None) -> dict[str, Any]:
@@ -44,10 +43,8 @@ def git_branch(name: str | None = None, cwd: str = ".") -> dict[str, Any]:
     return _run(["branch", "--show-current"], cwd=cwd)
 
 
-def register_git_tools(registry=None, cwd: str = ".") -> None:
-    reg = registry
-    from .tools import ToolRegistry
-    reg = reg or ToolRegistry.get_instance()
+def register_git_tools(registry: ToolRegistry | None = None, cwd: str = ".") -> None:
+    reg = registry or ToolRegistry.get_instance()
     reg.register("git_status", lambda: git_status(cwd), "Git status",
                  category=ToolCategory.SYSTEM,
                  parameters=[])

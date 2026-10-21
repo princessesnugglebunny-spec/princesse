@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import re
 import shutil
 import struct
 import subprocess
@@ -54,8 +52,6 @@ def probe_gguf(path: Path | str) -> GGUFMetadata:
         kv_count = struct.unpack("<Q", f.read(8))[0]
         metadata: dict[str, Any] = {}
         # Minimal KV reader for common types (uint32, int32, float32, string, bool, uint64)
-        type_map = {0: "uint8", 1: "int8", 2: "uint16", 3: "int16", 4: "uint32", 5: "int32",
-                    6: "float32", 7: "bool", 8: "string", 9: "array", 10: "uint64", 11: "int64", 12: "float64"}
         for _ in range(kv_count):
             key = _read_string(f)
             vtype = struct.unpack("<I", f.read(4))[0]

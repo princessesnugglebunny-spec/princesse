@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .audit_log import redact, redact_mapping
+
 
 @dataclass
 class Event:
@@ -121,7 +123,7 @@ class TranscriptWriter:
                     f"- latency: {d.get('latency_ms')} ms\n")
         if event.kind == "llm_response":
             calls = d.get("tool_calls") or []
-            body = d.get("content", "")
+            body = redact(str(d.get("content", "")))
             text = f"\n#### {ts} — model output\n\n{body}\n"
             if calls:
                 text += "\nRequested tools:\n\n"
@@ -129,18 +131,20 @@ class TranscriptWriter:
                     text += f"- `{c.get('name')}` `{c.get('arguments')}`\n"
             return text
         if event.kind == "tool_start":
-            return f"\n#### {ts} — tool `{d.get('tool')}`\n\n```json\n{d.get('args')}\n```\n"
+            args = redact_mapping(d.get("args") or {})
+            return f"\n#### {ts} — tool `{d.get('tool')}`\n\n```json\n{args}\n```\n"
         if event.kind == "tool_end":
             status = "ok" if d.get("ok") else "FAILED"
+            result = redact(str(d.get("result")))[:2000]
             return (f"\n#### {ts} — tool `{d.get('tool')}` {status} "
-                    f"({d.get('duration_ms')} ms)\n\n```\n{str(d.get('result'))[:2000]}\n```\n")
+                    f"({d.get('duration_ms')} ms)\n\n```\n{result}\n```\n")
         if event.kind == "hook_match":
             return (f"\n#### {ts} — hook `{d.get('hook')}` matched "
                     f"(score {d.get('score')}, words {d.get('matched')})\n")
         if event.kind == "hook_action":
             return f"    - action `{d.get('action')}` → {d.get('detail')}\n"
         if event.kind == "memory_write":
-            return f"\n#### {ts} — memory write `{d.get('key')}`\n\n{str(d.get('value'))[:500]}\n"
+            return f"\n#### {ts} — memory write `{d.get('key')}`\n\n{redact(str(d.get('value')))[:500]}\n"
         if event.kind == "context_update":
             return (f"\n#### {ts} — context: {d.get('tokens')}/{d.get('budget')} tokens "
                     f"across {d.get('messages')} messages\n")

@@ -1,6 +1,5 @@
 import asyncio
 import json
-from pathlib import Path
 
 from princesse.providers import (BUILTIN_PROVIDERS, ProviderRegistry, ProviderSpec, ModelTeam,
                                  CatalogueManager, Catalogue, ModelInfo, CLIProvider)

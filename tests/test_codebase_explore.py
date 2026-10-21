@@ -1,5 +1,4 @@
 from princesse.codebase_explore import CodebaseExplorer, extract_symbols
-from pathlib import Path
 
 def test_extract(tmp_path):
     p = tmp_path/"m.py"

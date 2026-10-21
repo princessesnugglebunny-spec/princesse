@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from ..llm import OpenAICompatibleProvider
 from .cli_bridge import CLIProvider
-from .registry import ProviderRegistry, ProviderSpec
+from .registry import ProviderSpec
 
 CAPABILITY_TAGS = ["code", "reasoning", "summarize", "tool_call", "cheap", "fast", "general"]
 

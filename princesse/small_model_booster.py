@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from .agent import Agent
@@ -87,12 +87,13 @@ class SmallModelBooster:
         try:
             # 2. Run with self-consistency if enabled
             if self.config.use_self_consistency and self.consistency:
-                # Use self-consistency for final answer generation
-                messages = [{"role": "system", "content": self.agent.system_prompt}] + self.agent.context.get_messages_for_model()
-                self.agent.context.append("user", goal)
-                
-                # Run agent normally but with consistency on final call
+                # Run the agent, then take a majority vote over independent samples
                 result = await self.agent.run(goal, use_optimizations=False)
+                messages = ([{"role": "system", "content": self.agent.system_prompt}]
+                            + self.agent.context.get_messages_for_model())
+                consensus = await self.consistency.run(messages)
+                if consensus:
+                    result.final_answer = consensus
                 
                 if self.config.use_reflection and self.config.max_reflections > 0:
                     result = await self._reflect_and_improve(goal, result)
@@ -140,7 +141,6 @@ class SmallModelBooster:
                 temperature=self.config.verify_temperature
             )
             content = data["choices"][0]["message"].get("content", "")
-            import json
             parsed = json.loads(content)
             if not parsed.get("verified", True) and parsed.get("improved"):
                 result.final_answer = parsed["improved"]

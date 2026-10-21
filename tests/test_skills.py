@@ -1,5 +1,4 @@
 from princesse.skills import parse_skill, SkillRegistry
-from pathlib import Path
 
 def test_parse_skill(tmp_path):
     text = "---\nname: greet\ndescription: hi\n---\n\nHello {name}"

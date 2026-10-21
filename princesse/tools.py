@@ -9,7 +9,6 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import Any, Optional
 
 
@@ -278,5 +277,9 @@ class ToolRegistry:
                             parameters=parameters, tags=["synthesized"],
                             metadata=metadata or {})
 
-    def to_openai_tools(self) -> list[dict[str, Any]]:
-        return [e.to_function_schema() for e in self._tools.values()]
+    def to_openai_tools(self, names: set[str] | None = None) -> list[dict[str, Any]]:
+        """Export tool schemas, optionally restricted to a subset of tool names."""
+        entries = self._tools.values()
+        if names is not None:
+            entries = [e for e in entries if e.name in names]
+        return [e.to_function_schema() for e in entries]

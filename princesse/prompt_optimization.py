@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-
 class PromptCompressor:
     @staticmethod
     def compress(text: str, target_ratio: float = 0.6) -> str:

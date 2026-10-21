@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 import re
 import time
 from pathlib import Path
@@ -85,11 +84,12 @@ def release_tag(current_version: str, release_type: str = "patch") -> str:
 
 def hot_swap_reload(module_name: str) -> dict[str, Any]:
     import importlib
+    import sys
     try:
-        if module_name in __import__("sys").modules:
-            mod = importlib.reload(__import__("sys").modules[module_name])
+        if module_name in sys.modules:
+            importlib.reload(sys.modules[module_name])
         else:
-            mod = importlib.import_module(module_name)
+            importlib.import_module(module_name)
         return {"module": module_name, "reloaded": True}
     except Exception as e:
         return {"module": module_name, "reloaded": False, "error": str(e)}

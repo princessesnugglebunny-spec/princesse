@@ -38,6 +38,8 @@ class Agent:
         self.team = team
         self.event_bus = event_bus
         self.hook_matches: list[Any] = []
+        self.active_tools: set[str] | None = None
+        self.always_tools: set[str] = set()
 
     def _apply_hooks(self, text: str) -> str:
         """Match hooks against text and apply their actions. Returns extra prompt text."""
@@ -55,6 +57,13 @@ class Agent:
             if self.event_bus:
                 for action in outcome.applied:
                     self.event_bus.hook_action(action.split(":")[0], action.split(":")[-1])
+            # scope the advertised tool set to what the hooks preloaded (token saving)
+            preloaded: set[str] = set()
+            for key, detail in outcome.details.items():
+                if key.endswith(":preload_tools") and isinstance(detail, list):
+                    preloaded.update(detail)
+            if preloaded:
+                self.active_tools = preloaded | self.always_tools
             return self.hook_executor.prompt_injection(matches)
         return ""
 
@@ -76,22 +85,33 @@ class Agent:
                 messages = [{"role": "system", "content": self.system_prompt}] + self.context.get_messages_for_model()
             if extra_prompt:
                 messages.insert(1, {"role": "system", "content": extra_prompt})
+            if self.active_tools is not None:
+                names = ", ".join(sorted(self.active_tools))
+                messages.insert(1, {"role": "system",
+                                    "content": f"Tools available for this task: {names}. "
+                                               f"Call only these."})
 
+            provider = self.provider
+            if self.team is not None and self.team.members:
+                member = self.team.route(goal)
+                if member is not None:
+                    provider = member.provider
             started = time.monotonic()
             if self.event_bus:
                 self.event_bus.iteration(iteration + 1)
                 self.event_bus.llm_call(
                     provider=getattr(self.provider, "base_url", "unknown"),
                     model=getattr(self.provider, "model", "unknown"),
-                    messages=len(messages), tools=len(self.tools.list_all()),
+                    messages=len(messages),
+                    tools=len(self.tools.to_openai_tools(self.active_tools)),
                     latency_ms=(time.monotonic() - started) * 1000)
-            data = await self.provider.complete(messages, self.tools.to_openai_tools())
+            data = await provider.complete(messages, self.tools.to_openai_tools(self.active_tools))
             if self.audit_log:
                 self.audit_log.log_llm_call(
                     model=getattr(self.provider, "model", "unknown"),
                     provider=getattr(self.provider, "base_url", "unknown"),
                     latency_ms=(time.monotonic() - started) * 1000)
-            content, calls = self.provider.parse_response(data) if hasattr(self.provider, "parse_response") else self._parse(data)
+            content, calls = provider.parse_response(data) if hasattr(provider, "parse_response") else self._parse(data)
             if self.event_bus:
                 self.event_bus.llm_response(content, calls)
             if calls:

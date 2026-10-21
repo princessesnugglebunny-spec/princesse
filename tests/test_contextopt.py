@@ -1,5 +1,5 @@
 from princesse.context_optimization import (ImportanceScorer, SemanticDeduplicator, TokenBudgetAllocator,
-    SlidingWindowCompressor, OutputTruncator, AdaptiveMaxTokens, ConversationSummarizer)
+    OutputTruncator, AdaptiveMaxTokens)
 from princesse.llm_optimization import EarlyStopper, SpeculativePrefetcher
 
 def test_importance_scorer():

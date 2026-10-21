@@ -1,5 +1,4 @@
 from princesse.prompt_optimization import PromptCompressor, ChainOfThought, FewShotSelector
-from princesse.tool_cache import ToolResultCache
 from princesse.context_pruning import ContextPruner
 from princesse.context import ContextWindow
 

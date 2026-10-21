@@ -52,6 +52,7 @@ def test_structured_reasoning():
         {"choices": [{"message": {"content": "done", "tool_calls": []}}]},
     ])
     sra = StructuredReasoningAgent(provider, reg)
+    assert sra.base_prompt
     # Test just the plan parsing
     plan = ["read file", "analyze"]
     assert len(plan) == 2

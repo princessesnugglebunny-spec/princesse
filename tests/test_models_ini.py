@@ -1,5 +1,4 @@
 from princesse.models_ini import ModelsIni
-from pathlib import Path
 
 def test_models_ini(tmp_path):
     p = tmp_path/"models.ini"

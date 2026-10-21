@@ -13,7 +13,7 @@ from typing import Any
 SECRET_PATTERNS = {
     "bearer": re.compile(r"(?i)\bbearer\s+([A-Za-z0-9._\-]{6,})"),
     "api_key": re.compile(
-        r"(?i)(api[_-]?key|access[_-]?token|auth[_-]?token|secret|password|authorization|credential)"
+        r"(?i)(api[_-]?key|access[_-]?token|auth[_-]?token|\btoken\b|secret|password|authorization|credential)"
         r"\s*['\"]?\s*[:=]\s*['\"]?([^\s'\",}\]]{4,})"),
 }
 

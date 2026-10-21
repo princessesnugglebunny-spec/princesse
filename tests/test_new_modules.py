@@ -1,5 +1,3 @@
-import asyncio
-import json
 from pathlib import Path
 
 import pytest
@@ -210,6 +208,16 @@ def test_pattern_library(tmp_path):
 
 
 # ---------------------------------------------------------------- transparency
+def test_transcript_redacts_secrets(tmp_path):
+    bus = EventBus()
+    tw = TranscriptWriter(str(tmp_path / "t.md"))
+    tw.attach(bus)
+    bus.tool_start("login", {"api_key": "sk-leakme12345"})
+    bus.tool_end("login", "token: sk-leakme12345", True, 1.0)
+    text = Path(tw.save()).read_text()
+    assert "sk-leakme12345" not in text
+
+
 def test_event_bus_emits_and_records():
     bus = EventBus()
     seen = []

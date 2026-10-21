@@ -1,8 +1,7 @@
-from princesse.git_tools import git_status, git_branch
+from princesse.git_tools import git_status
 from princesse.tool_cache import ToolResultCache
 from princesse.memory_consolidation import MemoryConsolidator
 from princesse.memory import MemoryStore
-from pathlib import Path
 
 def test_tool_cache():
     c = ToolResultCache(ttl=10)

@@ -9,5 +9,5 @@ from ..llm import LLMProvider, OpenAICompatibleProvider
 __all__ = [
     "BUILTIN_PROVIDERS", "ProviderRegistry", "ProviderSpec",
     "Catalogue", "CatalogueManager", "ModelInfo",
-    "CLIProvider", "ModelTeam", "TeamMember", "OpenAICompatibleProvider",
+    "CLIProvider", "ModelTeam", "TeamMember", "OpenAICompatibleProvider", "LLMProvider",
 ]

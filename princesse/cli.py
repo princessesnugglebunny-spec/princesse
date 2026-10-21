@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import sys
 from pathlib import Path
 
 
@@ -29,8 +28,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_web = sub.add_parser("web", help="Start minimal web UI")
     p_web.add_argument("--port", type=int, default=8765)
 
-    p_tui = sub.add_parser("tui", help="Start minimal TUI")
-    p_repl = sub.add_parser("repl", help="Start the interactive REPL")
+    sub.add_parser("tui", help="Start minimal TUI")
+    sub.add_parser("repl", help="Start the interactive REPL")
 
     p_models = sub.add_parser("models", help="Browse the model catalogue")
     p_models.add_argument("query", nargs="*", help="Search query")
@@ -104,8 +103,8 @@ def _provider_for(cfg, name: str, model: str, base_url: str):
     from .providers import OpenAICompatibleProvider, ProviderRegistry
     registry = ProviderRegistry()
     spec = registry.get(name) if name else None
-    if spec is None and name:
-        spec = registry.get("ollama")
+    if name and spec is None:
+        print(f"Unknown provider '{name}'. Known: {', '.join(sorted(registry.specs))}. Falling back to ollama.")
     if spec is None:
         spec = registry.get("ollama")
     api_key = ""
