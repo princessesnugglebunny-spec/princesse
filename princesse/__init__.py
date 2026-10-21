@@ -21,6 +21,12 @@ from .lsp_tool import register_lsp_tools, lsp_diagnostics
 from .tool_cache import ToolResultCache
 from .memory_consolidation import MemoryConsolidator
 from .tdd import TDDCycle
+from .prompt_optimization import PromptCompressor, ChainOfThought, FewShotSelector, SelfConsistency
+from .inference import InferenceOptimizer
+from .context_pruning import ContextPruner
+from .context_optimization import (ImportanceScorer, SemanticDeduplicator, TokenBudgetAllocator,
+    SlidingWindowCompressor, OutputTruncator, AdaptiveMaxTokens, ConversationSummarizer)
+from .llm_optimization import RequestCoalescer, EarlyStopper, SpeculativePrefetcher
 from .hf_download import HFDownloader
 from .models_ini import ModelsIni
 from .coding_agent import CodingAgent, CodeResult, solve_code
