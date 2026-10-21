@@ -111,8 +111,14 @@ def test_hook_strict_order_blocks_reversed():
 def test_hook_fuzzy_match():
     engine = HookEngine()
     engine.add(_hook(["debug"], threshold=0.6))
-    matches = engine.match("please debbg this")
+    matches = engine.match("please debugg this")
     assert matches and matches[0].score > 0
+
+
+def test_hook_rejects_garbage_fuzzy():
+    engine = HookEngine()
+    engine.add(_hook(["debug"], threshold=0.6))
+    assert not engine.match("the pytest profiler ran")
 
 
 def test_hook_synonyms():

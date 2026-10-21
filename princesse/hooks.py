@@ -13,6 +13,11 @@ import yaml
 
 TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
 
+# Fuzzy matching is deliberately stricter than the trigger threshold: a loose
+# ratio on short words produces garbage matches ("pytest" ~ "profiling").
+FUZZY_MIN_RATIO = 0.82
+FUZZY_MIN_WORD_LENGTH = 5
+
 DEFAULT_SYNONYMS: dict[str, list[str]] = {
     "error": ["exception", "failure", "traceback", "crash", "bug", "stacktrace"],
     "fix": ["repair", "resolve", "patch", "correct", "heal"],
@@ -95,13 +100,20 @@ def tokenize(text: str) -> list[str]:
 
 
 def _expand(words: list[str], synonyms: dict[str, list[str]]) -> dict[str, list[str]]:
-    """Map every accepted surface form to its canonical trigger word."""
+    """Map every accepted surface form to its canonical trigger word.
+
+    Only synonyms of the trigger's own words are considered: a synonym table
+    entry for an unrelated word must never make the trigger fire.
+    """
     out: dict[str, list[str]] = {}
+    wanted = set(words)
     for w in words:
         out.setdefault(w, []).append(w)
         for s in synonyms.get(w, []):
             out.setdefault(s, []).append(w)
     for canonical, alts in synonyms.items():
+        if canonical not in wanted:
+            continue
         for alt in alts:
             out.setdefault(alt, []).append(canonical)
     return out
@@ -178,15 +190,18 @@ class HookEngine:
             # fuzzy: find a close trigger word
             best_ratio, best_word = 0.0, ""
             for surface in accepted:
+                if len(tok) < FUZZY_MIN_WORD_LENGTH or len(surface) < FUZZY_MIN_WORD_LENGTH:
+                    continue
                 ratio = difflib.SequenceMatcher(None, tok, surface).ratio()
                 if ratio > best_ratio:
                     best_ratio, best_word = ratio, surface
-            if best_ratio >= trigger.threshold and best_word not in positions:
+            if best_ratio >= FUZZY_MIN_RATIO and best_word not in positions:
                 positions[best_word] = i
                 matched_canonical.append(best_word)
                 fuzzy_hits += 1
 
-        if len(positions) < max(1, trigger.min_matches):
+        matched_count = len(positions)
+        if matched_count < max(1, trigger.min_matches):
             return None
 
         ordered = sorted(positions.values())
@@ -201,11 +216,14 @@ class HookEngine:
             if max(gaps) > trigger.proximity:
                 return None
 
-        coverage = len(positions) / len(trigger.words)
-        base = min(1.0, coverage)
+        # Score reflects how well the trigger fired, not how many alternative
+        # words the trigger happens to list: one exact hit on a min_matches=1
+        # trigger is a full match.
+        required = max(1, trigger.min_matches)
+        score = min(1.0, matched_count / required)
         if fuzzy_hits:
-            base *= (1.0 - 0.1 * fuzzy_hits)
-        score = round(base, 4)
+            score *= (1.0 - 0.1 * fuzzy_hits)
+        score = round(score, 4)
         if score < trigger.threshold:
             return None
         return HookMatch(hook=None, score=score, matched_words=sorted(positions.keys()), positions=ordered)

@@ -261,8 +261,13 @@ def _providers(args):
     from .providers import ProviderRegistry
     registry = ProviderRegistry()
     for spec in registry.list_all():
-        key = "key" if spec.key_present() else "-"
-        line = f"{spec.name:14} {spec.display:24} {spec.base_url or '(cli)':40} {key}"
+        if spec.cli_command:
+            key_state = "cli"
+        elif spec.local:
+            key_state = "local"
+        else:
+            key_state = "yes" if spec.key_present() else "no"
+        line = f"{spec.name:14} {spec.display:24} {spec.base_url or '(cli)':40} {key_state}"
         print(line)
     if args.health:
         for spec in registry.list_all():
