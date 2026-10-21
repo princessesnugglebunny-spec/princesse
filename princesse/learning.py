@@ -23,13 +23,13 @@ class LearningLoop:
             actions.append(f"memory:{n}")
         # if many tool calls, create a skill summarizing the approach
         if len(tool_calls) >= 3:
-            skill_name = "auto_" + hashlib.sha1(goal.encode()).hexdigest()[:8]
+            skill_name = "auto_" + hashlib.sha1(goal.encode(), usedforsecurity=False).hexdigest()[:8]
             content = f"Goal: {goal}\n\nApproach used {len(tool_calls)} tool calls.\nResult: {result[:500]}"
             skill = Skill(name=skill_name, description=f"Auto-created skill for: {goal[:80]}",
                           content=content, metadata={"auto": "true"})
             self.skills.register(skill, persist=True)
             actions.append(f"skill:{skill_name}")
         # record trajectory summary
-        self.memory.put(f"trajectory:{hashlib.sha1(goal.encode()).hexdigest()[:12]}",
+        self.memory.put(f"trajectory:{hashlib.sha1(goal.encode(), usedforsecurity=False).hexdigest()[:12]}",
                         f"{goal} -> {result[:200]}", tags=["trajectory", "auto"])
         return {"actions": actions, "nudges": nudges}

@@ -9,6 +9,7 @@ from princesse.hooks import Hook, HookEngine, HookExecutor, TriggerSpec
 from princesse.rag import Indexer, Retriever
 from princesse.reuse import ReuseAdvisor, PatternLibrary, extract_signatures
 from princesse.transparency import EventBus, TranscriptWriter
+from princesse.tools import ToolRegistry
 
 
 # ---------------------------------------------------------------- config
@@ -113,6 +114,48 @@ def test_hook_fuzzy_match():
     engine.add(_hook(["debug"], threshold=0.6))
     matches = engine.match("please debugg this")
     assert matches and matches[0].score > 0
+
+
+def test_register_is_idempotent_via_helper():
+    from princesse.tools import register_tool
+    reg = ToolRegistry()
+    reg.reset()
+    first = register_tool(reg, "t", lambda: 1, "one")
+    second = register_tool(reg, "t", lambda: 2, "two")
+    assert first is second
+    assert len(reg.list_all()) == 1
+
+
+def test_default_tool_registration_is_idempotent():
+    from princesse.bootstrap import register_default_tools
+    reg = ToolRegistry()
+    reg.reset()
+    register_default_tools(reg)
+    before = len(reg.list_all())
+    register_default_tools(reg)
+    assert len(reg.list_all()) == before
+
+
+def test_skill_name_sanitised(tmp_path):
+    from princesse.skills import Skill, SkillRegistry, sanitize_name
+    assert "/" not in sanitize_name("../escape")
+    assert ".." not in sanitize_name("../escape")
+    reg = SkillRegistry(directory=tmp_path / "skills")
+    reg.register(Skill(name="../escape", description="x", content="y"), persist=True)
+    assert list((tmp_path / "skills").glob("*.md"))
+    assert not list(tmp_path.glob("escape.md"))
+
+
+def test_browser_tools_skipped_without_playwright():
+    from princesse.browser import register_browser_tools, PLAYWRIGHT_AVAILABLE
+    reg = ToolRegistry()
+    reg.reset()
+    count = register_browser_tools(reg)
+    if PLAYWRIGHT_AVAILABLE:
+        assert count == 2
+    else:
+        assert count == 0
+        assert not [t for t in reg.list_all() if "browser" in t.name]
 
 
 def test_hook_rejects_garbage_fuzzy():

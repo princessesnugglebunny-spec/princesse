@@ -157,11 +157,21 @@ class LlamaServer:
                 return False
             try:
                 import urllib.request
-                urllib.request.urlopen(f"http://{self.host}:{self.port}/health", timeout=1)
+                from .security import safe_http_url
+                urllib.request.urlopen(safe_http_url(f"http://{self.host}:{self.port}/health"),  # nosec B310 - scheme validated by safe_http_url
+                                       timeout=1)
                 return True
             except Exception:
                 time.sleep(0.2)
-        return self.process.poll() is None
+        # never became healthy: do not leak the process
+        if self.process.poll() is None:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except Exception:
+                self.process.kill()
+        self.process = None
+        return False
 
     def stop(self):
         if self.process is not None:
@@ -175,7 +185,9 @@ class LlamaServer:
     def health(self) -> bool:
         try:
             import urllib.request
-            urllib.request.urlopen(f"http://{self.host}:{self.port}/health", timeout=2)
+            from .security import safe_http_url
+            url = safe_http_url(f"http://{self.host}:{self.port}/health")
+            urllib.request.urlopen(url, timeout=2)  # nosec B310 - scheme validated by safe_http_url
             return True
         except Exception:
             return False

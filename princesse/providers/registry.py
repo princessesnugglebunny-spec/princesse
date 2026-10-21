@@ -98,12 +98,17 @@ class ProviderRegistry:
             return {"provider": name, "ok": False, "reason": "no base url"}
         import urllib.error
         import urllib.request
-        req = urllib.request.Request(f"{spec.base_url.rstrip('/')}/models")
+        from ..security import safe_http_url
+        try:
+            url = safe_http_url(f"{spec.base_url.rstrip('/')}/models")
+        except ValueError as e:
+            return {"provider": name, "ok": False, "reason": str(e)}
+        req = urllib.request.Request(url)  # nosec B310 - scheme validated by safe_http_url
         key = os.getenv(spec.env_key, "") if spec.env_key else ""
         if key:
             req.add_header("Authorization", f"Bearer {key}")
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310 - scheme validated by safe_http_url
                 return {"provider": name, "ok": resp.status == 200, "status": resp.status}
         except urllib.error.HTTPError as e:
             return {"provider": name, "ok": False, "status": e.code, "reason": str(e)}

@@ -17,6 +17,21 @@ class PathEscapeError(Exception):
     """Raised when a path escapes its allowed root."""
 
 
+def safe_http_url(url: str) -> str:
+    """Validate that a URL uses an HTTP(S) scheme before it is fetched.
+
+    Blocks ``file:``, ``ftp:`` and custom schemes so a mis-configured
+    provider or host string cannot turn a health probe into a local file read.
+    """
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"unsupported URL scheme: {parsed.scheme or '(none)'}")
+    if not parsed.netloc:
+        raise ValueError("URL has no host")
+    return url
+
+
 def safe_path(path: str | Path, root: str | Path) -> Path:
     """Resolve `path` inside `root`, rejecting traversal and symlink escapes."""
     root_resolved = Path(root).expanduser().resolve()

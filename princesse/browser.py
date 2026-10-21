@@ -40,14 +40,22 @@ def browser_screenshot(url: str, path: str = "screenshot.png") -> dict[str, Any]
         return {"url": url, "screenshot": path}
 
 
-def register_browser_tools(registry=None) -> None:
-    from .tools import ToolRegistry, ToolCategory, ToolParameter
+def register_browser_tools(registry=None) -> int:
+    """Register browser tools only when playwright is installed.
+
+    Advertising a tool that always fails wastes a model turn and tokens, so
+    the tools are omitted entirely when the backend is unavailable.
+    """
+    from .tools import ToolRegistry, ToolCategory, ToolParameter, register_tool
     reg = registry or ToolRegistry.get_instance()
-    reg.register("browser_open", browser_open, "Open a URL and extract text",
+    if not PLAYWRIGHT_AVAILABLE:
+        return 0
+    register_tool(reg, "browser_open", browser_open, "Open a URL and extract text",
                  category=ToolCategory.NETWORK,
                  parameters=[ToolParameter(name="url", type="string", description="URL"),
                             ToolParameter(name="timeout", type="integer", description="Timeout ms", required=False, default=30000)])
-    reg.register("browser_screenshot", browser_screenshot, "Screenshot a URL",
+    register_tool(reg, "browser_screenshot", browser_screenshot, "Screenshot a URL",
                  category=ToolCategory.NETWORK,
                  parameters=[ToolParameter(name="url", type="string", description="URL"),
                             ToolParameter(name="path", type="string", description="Output path", required=False, default="screenshot.png")])
+    return 2

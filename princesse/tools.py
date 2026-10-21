@@ -283,3 +283,16 @@ class ToolRegistry:
         if names is not None:
             entries = [e for e in entries if e.name in names]
         return [e.to_function_schema() for e in entries]
+
+
+def register_tool(registry: "ToolRegistry", name: str, function: Callable, description: str,
+                  **kwargs: Any) -> ToolEntry:
+    """Register a tool, tolerating a name that is already registered.
+
+    Helper packs are loaded more than once in some flows (CLI + REPL, plugins);
+    re-registration must not raise.
+    """
+    existing = registry.get(name)
+    if existing is not None:
+        return existing
+    return registry.register(name, function, description, **kwargs)

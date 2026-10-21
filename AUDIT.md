@@ -1,250 +1,234 @@
-# princesse — Comprehensive Audit Report
+# princesse — Complete Audit & Scoring Report
 
-**Date:** 2026-10-22  
-**Commit:** `4ed23f5` (main)  
-**Language:** Python 3.11+  
-**Tests:** 50 passing, 0 failing  
-**Static Analysis:** pyright 0 errors, 0 warnings  
-
----
-
-## 1. Project Overview
-
-| Metric | Value |
-|--------|-------|
-| Source modules | 34 |
-| Test modules | 18 |
-| Total LOC (src) | ~6,200 |
-| Total LOC (tests) | ~1,600 |
-| Dependencies | pyyaml, rich, httpx (optional: playwright) |
-
-**Core Capability:** Original agent runtime distilled from 6 reference repos (agent-zero, hermes-agent, OpenManus, model-loader, llama-optim, slutt). All code is original (PRP — no copied blocks).
+**Date:** 2026-10-22
+**Commit audited:** `916fffb` → `f0dc2a1` (audit fixes applied in this pass)
+**Language:** Python 3.11+ · **Package:** `princesse` 0.1.0
+**Repo:** https://github.com/princessesnugglebunny-spec/princesse
 
 ---
 
-## 2. Architecture Scorecard
+## 1. Executive Summary
 
-| Area | Score (1-10) | Notes |
-|------|--------------|-------|
-| **Modularity** | 9 | Clean separation: context, tools, agent, memory, models, orchestration, skills, optimizations |
-| **Extensibility** | 9 | ToolRegistry singleton, provider protocol, skill system, dynamic tool synthesis |
-| **Testability** | 8 | 50 unit tests with mocked providers; integration tests need real LLM |
-| **Observability** | 7 | Tool metrics, telemetry, context stats; no structured logging framework |
-| **Performance** | 8 | Parallel tool execution, token budgeting, caching, context pruning |
-| **Security** | 6 | SandboxSpec defined but no default isolator; subprocess tools run unrestricted |
-| **Documentation** | 7 | Docstrings on all public APIs; README; no architecture diagrams |
+**Overall score: 7.6 / 10** — a strong, original agent runtime with excellent architecture and
+extensibility, held back by test coverage gaps on the interface layer and an unfinished OS-level
+sandbox.
 
----
-
-## 3. Feature Coverage vs. References
-
-| Reference | Key Features Ported | Coverage |
-|-----------|---------------------|----------|
-| **agent-zero** | Agent loop (monologue→tool), YAML profiles, prompt templates | 60% |
-| **hermes-agent** | Memory nudges, skill download/equip, learning loop | 45% |
-| **OpenManus** | Plan-then-act orchestration | 50% |
-| **model-loader** | GGUF probe, autoconfig (ctx/ngl/cache), llama-server lifecycle | 70% |
-| **llama-optim** | Parameter sweep, benchmark harness | 80% |
-| **slutt** | Hierarchical context compression, dynamic tool registry, multi-agent, codebase exploration, 8 capability tools | 55% |
-
-**Overall distillation efficiency:** ~55% of reference capabilities captured in ~10% of combined LOC.
+| Verdict | Detail |
+|---|---|
+| **Production-ready?** | **No** — for untrusted input or multi-tenant use. **Yes** for local single-user development. |
+| **Blocking gaps** | 4 (listed in §7) |
+| **Defects found & fixed in this audit** | 11 |
+| **Security findings** | 0 high, 0 medium (was 3 high, 4 medium) |
+| **Test coverage** | 55% overall (4,847 stmts, 2,198 missed); 58.8% excluding `ui/*`; 62.4% excluding `ui/*` + `cli.py`; 0% on the interface layer (604 stmts) |
 
 ---
 
-## 4. Module-by-Module Assessment
+## 2. Objective Metrics
 
-### Core Runtime (High Maturity)
+| Metric | Value | Source |
+|---|---|---|
+| Source modules | 57 | `find` |
+| Source LOC | 6,677 | `wc -l` |
+| Test modules / LOC | 20 / 990 | `pytest` |
+| Tests | **96 passing, 0 failing** | `pytest -q` |
+| Line coverage | **55%** (4,847 stmts, 2,198 missed) | `pytest-cov` |
+| Type errors | **0** | `pyright` |
+| Lint warnings | **0** | `pyflakes` |
+| Security findings | **0 high / 0 medium / 26 low** | `bandit` |
+| Stub markers (`TODO`/`FIXME`/`pass`/`NotImplementedError`) | **0** | grep |
+| Bare `except:` | **0** | grep |
+| Hook packs | 3 YAML files, 7 hooks | `hooks/builtin/` |
+| Runtime dependencies | 3 (`pyyaml`, `rich`, `httpx`) | `pyproject.toml` |
+| Optional dependencies | 1 (`playwright`) | `browser.py` |
 
-| Module | LOC | Tests | Status |
-|--------|-----|-------|--------|
-| `context.py` | 280 | 2 | ✅ Rolling window + hierarchical summarization |
-| `tools.py` | 350 | 2 | ✅ Registry, schemas, validation, metrics, sandbox spec |
-| `agent.py` | 180 | 2 | ✅ Loop with parallel tools, optimizations wired |
-| `memory.py` | 120 | 2 | ✅ File-backed KV + search + nudges |
-| `providers.py` | 150 | 0 | ✅ OpenAI-compatible + streaming |
+### Largest modules (LOC)
+| Module | LOC | Concern |
+|---|---|---|
+| `hooks.py` | 340 | Matching engine + executor in one module — consider splitting |
+| `ui/repl.py` | 333 | 0% covered |
+| `small_model_booster.py` | 331 | 37% covered, 4 agent strategies in one file |
+| `cli.py` | 328 | 0% covered |
+| `tools.py` | 298 | Core, 80% covered — acceptable |
+| `context.py` | 245 | Core, 69% covered |
 
-### Extended Capabilities (Medium Maturity)
+---
 
-| Module | LOC | Tests | Status |
-|--------|-----|-------|--------|
-| `execution.py` | 160 | 1 | ✅ Terminal, Python, file ops |
-| `browser.py` | 80 | 0 | ⚠️ Optional playwright; not tested |
-| `delegation.py` | 90 | 1 | ✅ Subagent spawn + parallel |
-| `mcp_client.py` | 120 | 0 | ⚠️ Stdio MCP client; no integration test |
-| `learning.py` | 60 | 1 | ✅ Post-task review + auto-skill |
-| `coding_agent.py` | 130 | 1 | ✅ Test-driven loop |
-| `orchestration.py` | 130 | 1 | ✅ Planner + multi-agent |
-| `skills.py` | 90 | 1 | ✅ Markdown front-matter registry |
-| `skill_download.py` | 80 | 0 | ⚠️ HTTP skill fetch; no live test |
+## 3. Dimension Scorecard
 
-### Model Management (Medium Maturity)
+| # | Dimension | Score | Evidence | Verdict |
+|---|---|---|---|---|
+| 1 | **Architecture & modularity** | **9.0** | 57 focused modules, no circular imports, one public surface in `__init__.py`, no module >340 LOC | Excellent |
+| 2 | **Extensibility & plugin surface** | **9.0** | `ToolRegistry` + `register_tool` (idempotent), `LLMProvider` protocol, skill registry, YAML hook packs, provider registry, MCP bridge | Excellent |
+| 3 | **Observability & transparency** | **8.5** | `EventBus` (7 event kinds), `TranscriptWriter`, JSONL audit log with correlation IDs, live REPL rendering, per-tool metrics | Strong |
+| 4 | **Code quality & hygiene** | **8.5** | pyright 0, pyflakes 0, no stubs, docstrings on public API, `__all__` complete (40+ exports) | Strong |
+| 5 | **Security posture** | **7.5** | Path chroot, deny-by-default command allowlist, skill hash verification, URL scheme validation, redaction, sandboxed builtins — but `shell=True` and `exec` remain by design | Good, not hardened |
+| 6 | **Documentation** | **7.0** | README (updated), `AUDIT.md`, distillation spec, implementation plan, module docstrings — no API reference or architecture diagram | Adequate |
+| 7 | **Developer experience** | **7.5** | `princesse` CLI with 10 subcommands, rich REPL, `--help` everywhere, no setup wizard or config validator | Good |
+| 8 | **Performance & token efficiency** | **7.0** | Parallel tool execution, tool scoping by hook, output truncation, context pruning, response caching, retry/backoff — but no streaming in the agent loop, no connection pooling, no benchmarks | Adequate |
+| 9 | **Error handling & resilience** | **7.0** | Retry with exponential backoff, catalogue cache fallback, provider health checks, graceful degradation — but several `except Exception: pass` blocks swallow errors silently | Adequate |
+| 10 | **Feature completeness vs. goal** | **8.0** | 8 of 9 requested audit items + hook system + model teaming + catalogues + transparency + reuse advisor | Strong |
+| 11 | **Test suite** | **6.5** | 96 tests, 55% coverage, good unit coverage on core modules — 0% on `cli.py`/`ui/*`, no integration tests, no real-LLM test | Weakest area |
+| 12 | **Production readiness** | **6.5** | No OS sandbox by default, no secrets manager, no rate limiting, no multi-tenancy, auto-install runs on every CLI invocation | Not ready |
 
-| Module | LOC | Tests | Status |
-|--------|-----|-------|--------|
-| `models.py` | 200 | 2 | ✅ GGUF probe + autoconfig + server lifecycle |
-| `models_ini.py` | 70 | 1 | ✅ ConfigParser + atomic backups |
-| `hf_download.py` | 80 | 0 | ⚠️ Parallel download stubbed to serial |
-| `optimize.py` | 90 | 1 | ✅ Param sweep + benchmark |
+**Weighted overall: 7.6 / 10** (weights: architecture 2×, security & correctness 2×, everything else 1×)
 
-### Optimization Suite (High Novelty)
+---
 
-| Module | LOC | Tests | Status |
-|--------|-----|-------|--------|
-| `context_optimization.py` | 150 | 1 | ✅ Scoring, dedup, budget alloc, sliding window, truncation |
-| `context_pruning.py` | 50 | 1 | ✅ Relevance-based pruning |
-| `prompt_optimization.py` | 120 | 1 | ✅ CoT, few-shot, self-consistency |
-| `inference.py` | 100 | 0 | ✅ Retry, cache, streaming |
-| `llm_optimization.py` | 80 | 1 | ✅ Coalescer, early stop, speculative prefetch |
-| `small_model_booster.py` | 400 | 1 | ✅ Booster wrapper, structured reasoning, ensemble, progressive refinement |
+## 4. Coverage by Module
 
-### Utility / Bootstrap (Low Risk)
+| Coverage | Modules |
+|---|---|
+| **90–100%** | `memory_consolidation` 100, `providers/__init__` 100, `codebase_explore` 90, `learning` 91, `optimize` 91, `skills` 91, `tool_cache` 70 → `models_ini` 83, `reuse` 84, `memory` 84 |
+| **70–89%** | `tools` 80, `hooks` 79, `execution` 78, `orchestration` 78, `transparency` 76, `coding_agent` 75, `config` 75, `audit_log` 74, `rag` 72, `mcp_catalogue` 70, `capabilities` 69, `context` 69 |
+| **50–69%** | `providers/catalogue` 68, `providers/team` 58, `security` 59, `llm_optimization` 57, `models` 53, `skill_catalogue` 51, `providers/registry` 49 |
+| **30–49%** | `git_tools` 44, `profiles` 42, `small_model_booster` 37, `prompts` 36, `context_pruning` 36, `tool_synthesis` 35, `providers/cli_bridge` 34, `lsp_tool` 33, `browser` 31, `reflection` 30, `tdd` 38 |
+| **0–29%** | `hf_download` 26, `inference` 25, `mcp_client` 23, `bootstrap_install` 18, `skill_download` 18, `llm` 12, `cli` 0, `ui/repl` 0, `ui/web` 0, `ui/tui` 0 |
 
-| Module | LOC | Tests | Status |
-|--------|-----|-------|--------|
-| `capabilities.py` | 250 | 1 | ✅ 8 distilled tools |
-| `git_tools.py` | 90 | 0 | ⚠️ No test |
-| `lsp_tool.py` | 50 | 0 | ⚠️ No test |
-| `tool_cache.py` | 60 | 1 | ✅ TTL cache |
-| `memory_consolidation.py` | 60 | 1 | ✅ Prune + merge |
-| `tdd.py` | 50 | 0 | ⚠️ No test |
-| `tool_synthesis.py` | 40 | 0 | ⚠️ No test |
-| `bootstrap.py` | 20 | 0 | ✅ Registers all tools |
-| `profiles.py` / `prompts.py` | 100 | 0 | ⚠️ No test |
-| `reflection.py` | 40 | 0 | ⚠️ No test |
-| `codebase_explore.py` | 80 | 1 | ✅ AST symbol extraction |
-| `ui/web.py` / `ui/tui.py` | 100 | 0 | ⚠️ Minimal; no test |
+**Interface-layer coverage: 0%** — `cli.py` + `ui/*` is 604 statements with no tests, and is the
+single biggest blind spot. Everything else reaches 58.8%, and the core runtime
+(`agent`, `tools`, `context`, `hooks`) reaches 69–80%.
 
 ---
 
 ## 5. Security Audit
 
-| Issue | Severity | Location | Recommendation |
-|-------|----------|----------|----------------|
-| **Arbitrary shell execution** | HIGH | `execution.py:run_terminal` | Add allowlist/denylist; default deny; sandbox isolator required |
-| **Arbitrary Python execution** | HIGH | `execution.py:run_python` | Restrict to sandbox; deny `__import__`, `eval`, `exec` |
-| **File system access** | MEDIUM | `execution.py:read/write/edit_file` | Chroot to workspace; deny `..` traversal |
-| **No auth on MCP** | MEDIUM | `mcp_client.py` | Add TLS/mTLS support |
-| **Skill download no verification** | MEDIUM | `skill_download.py` | Verify signatures/checksums |
-| **Tool synthesis uses `exec`** | MEDIUM | `tool_synthesis.py` | Restrict to sandbox; AST validation |
-| **Subprocess no timeout enforcement** | LOW | Multiple | Add global timeout budget |
+### Bandit results
+| Severity | Before this audit | After |
+|---|---|---|
+| High | 3 | **0** |
+| Medium | 4 | **0** |
+| Low | 26 | 26 |
+
+Remaining 26 LOW findings are inherent to the design: `B404`/`B603`/`B607` (subprocess use),
+`B110` (try/except/pass), `B112` (try/except/continue). None are exploitable in context —
+subprocess calls are policy-gated and try/except blocks guard optional subsystems.
+
+### Control matrix
+| Control | Status | Implementation |
+|---|---|---|
+| Filesystem containment | ✅ | `security.safe_path()` resolves symlinks, rejects `..` escapes |
+| Command execution control | ✅ | `CommandPolicy` allowlist + 7 deny patterns (`rm -rf /`, `sudo`, fork bombs, `curl\|sh`) |
+| Untrusted skill handling | ✅ | SHA-256 verification, optional cosign signature, filename sanitisation |
+| Secret redaction | ✅ | `redact()` + `redact_mapping()` on audit log **and** transcripts |
+| URL scheme validation | ✅ | `safe_http_url()` rejects `file:`/`ftp:`/custom schemes |
+| Dynamic code execution | ⚠️ | `exec` retained (dynamic tool creation) but namespace restricted to 28 safe builtins |
+| Shell execution | ⚠️ | `shell=True` retained by design, gated by policy + workspace cwd |
+| OS-level isolation | ❌ | `SandboxIsolator` is interface-complete but not wired as the default; `preexec_fn` limits are advisory |
+| Authentication on MCP transport | ❌ | stdio only; no TLS/mTLS |
+| Rate limiting / quota | ❌ | Not implemented |
+| Secret management | ❌ | Keys read from env only; no OS keychain integration |
 
 ---
 
-## 6. Dark Pattern Mitigation
+## 6. Defects Found and Fixed in This Audit
 
-| Pattern | Risk | Mitigation (Implemented / Recommended) |
-|---------|------|----------------------------------------|
-| **Unbounded token spend** | User pays for runaway loops | ✅ `ContextWindow` budget + `AdaptiveMaxTokens` + `EarlyStopper` |
-| **Silent tool failures** | Agent thinks it succeeded | ✅ Tool metrics track errors; `AgentResult` includes tool_calls |
-| **Context poisoning** | Malicious input pollutes memory | ⚠️ Add input sanitization; `pii_redact` tool exists but not auto-applied |
-| **Skill/tool supply chain** | Malicious skill download | ⚠️ Add signature verification; pin skill registry |
-| **Prompt injection** | User input overrides system prompt | ⚠️ Use structured messages; separate system/user/tool roles strictly |
-| **Data exfiltration** | Tools leak secrets | ⚠️ Secret scanning in `pii_redact`; add secret detection to memory store |
-| **Resource exhaustion** | Infinite loops, large outputs | ✅ `OutputTruncator`, `max_iterations`, `max_tokens`, tool timeouts |
-| **Model hallucination as fact** | Unverified tool output trusted | ⚠️ Add verification pass (partial in `SmallModelBooster._verify_answer`) |
-| **Vendor lock-in** | Tied to specific provider | ✅ `LLMProvider` protocol; OpenAI-compatible only default |
-| **Telemetry without consent** | Usage data sent silently | ✅ Local-first; no external telemetry by default |
-
-**Recommended additions:**
-1. **Capability manifest** — Agent declares required tools at startup; user approves
-2. **Audit log** — Append-only log of all tool invocations with args/results
-3. **Policy engine** — Deny/allow rules per tool, per project, per time window
-4. **Sandbox by default** — Require explicit opt-out for host execution
-5. **Skill integrity** — `cosign`/`sigstore` verification for downloaded skills
+| # | Defect | Severity | Fix |
+|---|---|---|---|
+| 1 | `register_default_tools` raised `ValueError` on second call (non-idempotent) | **High** | New `register_tool()` helper; all 5 packs use it; regression test added |
+| 2 | Skill name from an untrusted catalogue escaped the skills directory (`../escape` → wrote outside) | **High** | `sanitize_name()`; `SkillRegistry.register` normalises; test added |
+| 3 | `llama-server` process leaked when it never became healthy | **High** | `start()` now terminates the process and returns `False` |
+| 4 | Browser tools advertised when playwright was absent → guaranteed-failing tool call + wasted turn | Medium | `register_browser_tools()` returns 0 and registers nothing when unavailable |
+| 5 | Secrets leaked into markdown transcripts (`token: sk-...` survived) | **High** | `TranscriptWriter` now redacts; pattern extended to bare `token`; test added |
+| 6 | `exec` in tool synthesis had unrestricted builtins | **High** | `_safe_builtins()` — 28 builtins, no `open`/`__import__`/`eval` |
+| 7 | Health probes followed any URL scheme (`file:` local read) | Medium | `safe_http_url()` + `nosec` justification |
+| 8 | SHA-1 flagged as a weak crypto primitive | Medium | `usedforsecurity=False` (identifier, not security) |
+| 9 | `hf_download.download_parallel` was serial — docstring lied | Medium | Real parallel range download with per-chunk resume and merge |
+| 10 | `rag.Indexer._index` written but never read | Low | Removed |
+| 11 | `providers` package shadowed `providers.py` module → circular import | **High** | Moved base class to `princesse/llm.py`; `providers/` is now a package |
 
 ---
 
-## 7. Performance Bottlenecks
+## 7. Open Issues (ranked)
 
-| Bottleneck | Impact | Mitigation |
-|------------|--------|------------|
-| Sequential LLM calls | Latency | ✅ Parallel tool execution; consider batching prompts |
-| Full context re-sent each turn | Token cost | ✅ Sliding window + pruning; add KV-cache awareness |
-| No embedding-based retrieval | Large memory = slow search | ⚠️ Add vector index (FAISS/hnswlib) for memory search |
-| Tool synthesis `exec` overhead | Slow dynamic tools | ⚠️ Cache compiled functions; bytecode cache |
-| GGUF probe reads entire file | Slow on large models | ⚠️ Memory-map; read only header |
-| HF download single-stream | Slow on large files | ⚠️ Implement true parallel range download + merge |
+### P0 — Blocking for production
+| ID | Issue | Why it blocks |
+|---|---|---|
+| P0-1 | `SandboxIsolator` not the default execution path | `run_terminal`/`run_python` run in the host process; `preexec_fn` limits are advisory, not a security boundary |
+| P0-2 | `ui/repl.py`, `ui/web.py`, `cli.py` have 0% coverage | The user-facing surface is entirely unverified; 604 statements of untested code |
+| P0-3 | `exec`-based tool synthesis reachable from the agent loop | Model-authored code executes in-process; restricted builtins reduce but do not remove risk |
+| P0-4 | No authentication on the web UI | `princesse web` binds `127.0.0.1` with no auth or CSRF — safe locally, unsafe if bound publicly |
 
----
+### P1 — Should fix before wide use
+| ID | Issue |
+|---|---|
+| P1-1 | Auto-install runs on **every** `princesse run` invocation (pip/npm/LSP installs) — should be once-per-boot or explicit |
+| P1-2 | `except Exception: pass` in 5 places silently hides failures (bootstrap_install, transparency, mcp_client, cli, browser) |
+| P1-3 | `ToolRegistry` is a global singleton — tests and multi-agent runs share state |
+| P1-4 | `small_model_booster` implements 4 agent strategies in one file (37% covered) |
+| P1-5 | `hooks.py` mixes the matching engine and the action executor (340 LOC) |
+| P1-6 | No structured logging; only the audit log and event bus |
 
-## 8. Recommendations (Priority Order)
-
-### P0 — Security & Correctness (Do Now)
-1. **Implement default sandbox isolator** (Docker/gVisor/bubblewrap) for `run_terminal`, `run_python`, `edit_file`
-2. **Add path traversal protection** in file tools (chroot to workspace)
-3. **Sign/verify skills** before registration
-4. **Add audit logging** for all tool invocations
-
-### P1 — Production Readiness
-5. **Structured logging** (structlog/json) with correlation IDs
-6. **Health checks** for llama-server, MCP connections, provider endpoints
-7. **Configuration system** (Pydantic Settings + env + YAML)
-8. **Async provider pool** for connection reuse
-
-### P2 — Small Model Excellence
-9. **Wire `SmallModelBooster` as default** in CLI `run` command
-10. **Add few-shot examples** per domain (coding, research, ops)
-11. **Implement RAG** over codebase + memory for context injection
-12. **Speculative decoding** integration (llama.cpp `--speculative`)
-
-### P3 — Developer Experience
-13. **Rich REPL** with history, autocomplete, inline docs
-14. **Web UI** with session visualization, tool call timeline
-15. **VS Code extension** for agent-driven editing
-16. **Plugin SDK** with typed interfaces
-
-### P4 — Scale & Ops
-17. **Distributed tracing** (OpenTelemetry)
-18. **Multi-tenant project isolation** (complete agent-zero projects feature)
-19. **Scheduler/cron** (hermes-style)
-20. **FTS5 memory search** (hermes-style)
+### P2 — Quality of life
+| ID | Issue |
+|---|---|
+| P2-1 | Streaming is implemented in the provider but never used by the agent loop |
+| P2-2 | No connection pooling — a new HTTP client per LLM call |
+| P2-3 | `ProviderRegistry.health()` opens a fresh connection per provider |
+| P2-4 | No API reference documentation or architecture diagram |
+| P2-5 | No lockfile — dependency versions are ranges |
+| P2-6 | `hf_download` still lacks a live end-to-end test against Hugging Face |
 
 ---
 
-## 9. Test Gap Analysis
+## 8. Recommendations
 
-| Module | Test Coverage | Missing |
-|--------|---------------|---------|
-| `browser.py` | 0% | Playwright mock; navigation test |
-| `mcp_client.py` | 0% | MCP server fixture; list/call test |
-| `hf_download.py` | 0% | HTTP mock; resume test |
-| `git_tools.py` | 0% | Git repo fixture |
-| `lsp_tool.py` | 0% | pyright mock |
-| `tdd.py` | 0% | TDD cycle test |
-| `tool_synthesis.py` | 0% | Synthesis + registration test |
-| `reflection.py` | 0% | Reflection loop test |
-| `profiles.py` / `prompts.py` | 0% | YAML load + assemble test |
-| `ui/*` | 0% | HTTP/TUI smoke tests |
+### P0 (this sprint)
+1. **Wire `SandboxIsolator` as the default** for `run_terminal` / `run_python`; keep host execution behind an explicit `sandbox=false` opt-in.
+2. **Add interface-layer tests**: CLI argument parsing (subprocess-free), REPL command dispatch, web handler routing. Target ≥60% on those three modules.
+3. **Gate dynamic tool synthesis** behind a config flag (`allow_dynamic_tools`) that is off by default and logged in the audit trail.
+4. **Add auth to the web UI** (bearer token from config + CSRF) or bind to loopback only with a printed warning.
 
-**Target:** ≥80% coverage on all public modules.
+### P1 (next sprint)
+5. Run auto-install once per boot, cached in `~/.princesse/bootstrap.json`; make it opt-in for `npm`/`pip` mutations.
+6. Replace silent `except Exception: pass` with a logged warning through the event bus.
+7. Make `ToolRegistry` instance-scoped with a module-level default, so tests and sub-agents do not share state.
+8. Split `hooks.py` → `hooks/matching.py` + `hooks/executor.py`; split `small_model_booster.py` → one module per strategy.
+9. Adopt `structlog` or stdlib `logging` with JSON output and the correlation ID from the audit log.
 
----
-
-## 10. Dependency Risk
-
-| Dep | Version | Risk | Notes |
-|-----|---------|------|-------|
-| pyyaml | 6+ | LOW | Stable |
-| rich | 13+ | LOW | Stable |
-| httpx | 0.27+ | LOW | Stable |
-| playwright | optional | MEDIUM | Large; browser binaries |
-| pytest | 8+ | LOW | Dev only |
-
-**No transitive vulnerabilities detected** (as of audit date).
+### P2 (backlog)
+10. Stream tokens from the provider into the REPL instead of waiting for a full completion.
+11. Add an `httpx.AsyncClient` pool reused across calls.
+12. Write `docs/architecture.md` (module map + data flow) and `docs/api.md`.
+13. Pin dependencies with `uv.lock` and add a scheduled `pip-audit` run.
+14. Add a live smoke test against a public OpenAI-compatible endpoint (opt-in, marked `network`).
 
 ---
 
-## 11. Summary
+## 9. Test Gap Plan
 
-**princesse** is a well-structured, original agent runtime with strong foundations in context management, tool orchestration, and small-model optimization. The distillation successfully captured high-value algorithms from 6 reference projects while maintaining a clean, extensible architecture.
-
-**Top strengths:** Context compression, dynamic tool registry, parallel execution, small-model booster suite, comprehensive optimization toolkit.
-
-**Critical gaps:** Security sandboxing, skill verification, audit logging, production observability.
-
-**Readiness:** Suitable for local development and experimentation. **Not production-ready** for untrusted input or multi-tenant use without P0 fixes.
+| Target | Modules | Current | Action |
+|---|---|---|---|
+| ≥80% | `cli`, `ui/repl`, `ui/web`, `ui/tui` | 0% | Add smoke tests (arg parsing, command dispatch, HTTP routing) |
+| ≥70% | `small_model_booster`, `security`, `providers/*`, `bootstrap_install`, `mcp_client`, `skill_download` | 18–59% | Add unit tests with fake providers / local HTTP stubs |
+| ≥90% | core runtime (`agent`, `tools`, `context`, `hooks`) | 69–80% | Add edge cases: tool-call storms, empty context, malformed tool args |
 
 ---
 
-*Audit performed by automated analysis + human review. Next audit recommended after P0 fixes and 80% test coverage achieved.*
-EOF
+## 10. Limits of This Audit
+
+- **Coverage is line coverage**, not branch coverage; branch coverage would be materially lower.
+- **No live-LLM validation**: every provider path was exercised with fakes or a local stub. Real
+  models, real tool-call formats, and real streaming were not tested.
+- **No multi-user / concurrency test**: the global `ToolRegistry` singleton and the shared
+  `.princesse/` state directory were not stress-tested.
+- **Dependency CVE scan not completed**: `pip-audit` requires network access to the advisory
+  database and was killed on timeout — **unverified**.
+- **`bandit` does not model the agent threat model**: an LLM driving `run_terminal` is a different
+  risk profile than a web service.
+- Scores are the auditor's judgement against the stated goals, not a benchmark against other
+  projects.
+
+---
+
+## 11. Bottom Line
+
+**princesse is a well-built, original agent runtime with an unusually strong foundation in
+architecture, extensibility, and observability for a project of this size.** The distillation from
+six reference repositories produced coherent, well-named code rather than a copy.
+
+It is **not** production-ready: the OS-level sandbox is optional, the interface layer is untested,
+and dynamic code execution remains reachable. Those three items (P0-1, P0-2, P0-3) are the
+difference between a powerful local agent and a service you would expose.
+
+Fixing the four P0 items and lifting the interface layer to 60% coverage would move the overall
+score to roughly **8.6 / 10** and make the project defensible for real use.

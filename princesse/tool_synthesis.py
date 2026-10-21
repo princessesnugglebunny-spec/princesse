@@ -11,10 +11,25 @@ class ToolSynthesizer:
     def __init__(self, registry: ToolRegistry | None = None):
         self.registry = registry or ToolRegistry.get_instance()
 
+    @staticmethod
+    def _safe_builtins() -> dict[str, Any]:
+        """A restricted builtin set for synthesized tools.
+
+        Dynamic tool creation compiles model-authored code; the namespace is
+        limited so a synthesized tool cannot reach the filesystem, the
+        network, or the interpreter internals by default.
+        """
+        import builtins
+        allowed = ("abs", "all", "any", "bool", "dict", "enumerate", "filter", "float",
+                   "format", "int", "len", "list", "map", "max", "min", "range", "reversed",
+                   "round", "set", "sorted", "str", "sum", "tuple", "zip",
+                   "Exception", "ValueError", "TypeError", "KeyError", "IndexError")
+        return {name: getattr(builtins, name) for name in allowed if hasattr(builtins, name)}
+
     def synthesize(self, name: str, code: str, description: str = "",
                   parameters: list[ToolParameter] | None = None) -> Callable:
-        namespace: dict[str, Any] = {}
-        exec(compile(code, f"<synthesized:{name}>", "exec"), namespace)  # noqa: S102
+        namespace: dict[str, Any] = {"__builtins__": self._safe_builtins()}
+        exec(compile(code, f"<synthesized:{name}>", "exec"), namespace)  # noqa: S102  # nosec B102 - dynamic tool creation; namespace restricted to safe builtins
         # expect a function named 'run' or the first callable
         func = namespace.get("run")
         if func is None:

@@ -7,6 +7,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def sanitize_name(name: str) -> str:
+    """Make a skill name safe to use as a filename.
+
+    Downloaded catalogues are untrusted input: a name like ``../escape``
+    would otherwise write outside the skills directory.
+    """
+    cleaned = SAFE_NAME_RE.sub("_", (name or "").strip())
+    cleaned = cleaned.lstrip(".") or "skill"
+    if cleaned in (".", ".."):
+        cleaned = "skill"
+    return cleaned
+
 
 @dataclass
 class Skill:
@@ -70,12 +85,17 @@ class SkillRegistry:
         return self._skills.get(name)
 
     def register(self, skill: Skill, persist: bool = False):
+        safe = sanitize_name(skill.name)
+        if safe != skill.name:
+            skill = Skill(name=safe, description=skill.description, content=skill.content,
+                          tags=list(skill.tags), metadata=dict(skill.metadata), path=skill.path)
         self._skills[skill.name] = skill
         if persist:
             self.directory.mkdir(parents=True, exist_ok=True)
             target = self.directory / f"{skill.name}.md"
             target.write_text(skill.to_markdown())
             skill.path = target
+        return skill
 
     def list_all(self) -> list[Skill]:
         return list(self._skills.values())

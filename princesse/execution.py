@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .security import CommandPolicy, PathEscapeError, safe_path
-from .tools import ToolRegistry, ToolCategory, ToolParameter
+from .tools import ToolRegistry, ToolCategory, ToolParameter, register_tool
 
 
 @dataclass
@@ -42,7 +42,10 @@ def run_terminal(command: str, cwd: str | None = None, timeout: int = 60,
         except PathEscapeError as e:
             return {"returncode": -1, "stdout": "", "stderr": f"blocked: {e}"}
     try:
-        proc = subprocess.run(command, shell=True, cwd=workdir, capture_output=True,
+        # shell=True is deliberate: the tool takes a shell command. The command is
+        # gated by CommandPolicy (allowlist + deny patterns) and runs inside the
+        # workspace sandbox, which is the mitigation bandit cannot see.
+        proc = subprocess.run(command, shell=True, cwd=workdir, capture_output=True,  # nosec B602
                               text=True, timeout=timeout or ctx.timeout)
         return {"returncode": proc.returncode, "stdout": proc.stdout[-4000:], "stderr": proc.stderr[-4000:]}
     except subprocess.TimeoutExpired:
@@ -137,33 +140,33 @@ def register_execution_tools(registry: ToolRegistry | None = None,
                              context: ExecutionContext | None = None) -> ToolRegistry:
     reg = registry or ToolRegistry.get_instance()
     ctx = context or _default_context()
-    reg.register("run_terminal", lambda command, cwd=None, timeout=60: run_terminal(command, cwd, timeout, ctx),
+    register_tool(reg, "run_terminal", lambda command, cwd=None, timeout=60: run_terminal(command, cwd, timeout, ctx),
                  "Run a shell command inside the workspace (allowlisted)",
                  category=ToolCategory.SYSTEM,
                  parameters=[ToolParameter(name="command", type="string", description="Shell command"),
                             ToolParameter(name="cwd", type="string", description="Working dir", required=False),
                             ToolParameter(name="timeout", type="integer", description="Timeout seconds", required=False, default=60)])
-    reg.register("run_python", lambda code, timeout=30: run_python(code, timeout, ctx),
+    register_tool(reg, "run_python", lambda code, timeout=30: run_python(code, timeout, ctx),
                  "Execute Python code inside the workspace",
                  category=ToolCategory.CODE_GENERATION,
                  parameters=[ToolParameter(name="code", type="string", description="Python code"),
                             ToolParameter(name="timeout", type="integer", description="Timeout", required=False, default=30)])
-    reg.register("read_file", lambda path: read_file(path, ctx),
+    register_tool(reg, "read_file", lambda path: read_file(path, ctx),
                  "Read a file inside the workspace",
                  category=ToolCategory.FILE_OPERATION,
                  parameters=[ToolParameter(name="path", type="string", description="File path")])
-    reg.register("write_file", lambda path, content: write_file(path, content, ctx),
+    register_tool(reg, "write_file", lambda path, content: write_file(path, content, ctx),
                  "Write a file inside the workspace",
                  category=ToolCategory.FILE_OPERATION,
                  parameters=[ToolParameter(name="path", type="string", description="File path"),
                             ToolParameter(name="content", type="string", description="Content")])
-    reg.register("edit_file", lambda path, old, new: edit_file(path, old, new, ctx),
+    register_tool(reg, "edit_file", lambda path, old, new: edit_file(path, old, new, ctx),
                  "Edit a file by replacing text",
                  category=ToolCategory.FILE_OPERATION,
                  parameters=[ToolParameter(name="path", type="string", description="File path"),
                             ToolParameter(name="old", type="string", description="Old text"),
                             ToolParameter(name="new", type="string", description="New text")])
-    reg.register("list_dir", lambda path=".": list_dir(path, ctx),
+    register_tool(reg, "list_dir", lambda path=".": list_dir(path, ctx),
                  "List directory contents inside the workspace",
                  category=ToolCategory.FILE_OPERATION,
                  parameters=[ToolParameter(name="path", type="string", description="Dir path", required=False, default=".")])

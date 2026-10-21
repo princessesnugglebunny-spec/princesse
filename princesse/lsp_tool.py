@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 from typing import Any
 
-from .tools import ToolRegistry, ToolCategory, ToolParameter
+from .tools import ToolRegistry, ToolCategory, ToolParameter, register_tool
 
 
 def lsp_diagnostics(path: str = ".", tool: str = "pyright") -> dict[str, Any]:
@@ -23,7 +23,7 @@ def lsp_diagnostics(path: str = ".", tool: str = "pyright") -> dict[str, Any]:
 
 def register_lsp_tools(registry=None) -> None:
     reg = registry or ToolRegistry.get_instance()
-    reg.register("lsp_diagnostics", lsp_diagnostics, "Run LSP/type checker diagnostics",
+    register_tool(reg, "lsp_diagnostics", lsp_diagnostics, "Run LSP/type checker diagnostics",
                  category=ToolCategory.ANALYSIS,
                  parameters=[ToolParameter(name="path", type="string", description="Path", required=False, default="."),
                             ToolParameter(name="tool", type="string", description="Tool name", required=False, default="pyright")])

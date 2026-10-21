@@ -133,7 +133,6 @@ class Indexer:
         self.vectorizer = Vectorizer(dims)
         self.chunks: list[Chunk] = []
         self.vectors: list[list[float]] = []
-        self._index: dict[str, int] = {}
 
     def scan(self) -> list[Chunk]:
         chunks: list[Chunk] = []
@@ -158,14 +157,12 @@ class Indexer:
         chunks = self.scan()
         self.chunks = chunks
         self.vectors = [self.vectorizer.vectorize(c.text) for c in chunks]
-        self._index = {c.id: i for i, c in enumerate(chunks)}
         return len(chunks)
 
     def add_text(self, text: str, path: str = "memory", kind: str = "memory") -> int:
         chunk = Chunk(id=f"{path}:{len(self.chunks)}", path=path, text=text, kind=kind)
         self.chunks.append(chunk)
         self.vectors.append(self.vectorizer.vectorize(text))
-        self._index[chunk.id] = len(self.chunks) - 1
         return len(self.chunks) - 1
 
     def search(self, query: str, k: int = 5, path_filter: str | None = None) -> list[tuple[Chunk, float]]:
@@ -200,7 +197,6 @@ class Indexer:
             return 0
         self.chunks = [Chunk.from_dict(c) for c in data.get("chunks", [])]
         self.vectors = [self.vectorizer.vectorize(c.text) for c in self.chunks]
-        self._index = {c.id: i for i, c in enumerate(self.chunks)}
         return len(self.chunks)
 
 

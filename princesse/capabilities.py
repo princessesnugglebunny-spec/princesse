@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .tools import ToolRegistry, ToolCategory, ToolParameter
+from .tools import ToolRegistry, ToolCategory, ToolParameter, register_tool
 
 
 def complexity_evaluate(file_path: str) -> dict[str, Any]:
@@ -113,41 +113,41 @@ def knowledge_extract(file_path: str) -> dict[str, Any]:
 
 def register_capability_tools(registry: ToolRegistry | None = None) -> ToolRegistry:
     reg = registry or ToolRegistry.get_instance()
-    reg.register("complexity_evaluate", complexity_evaluate,
+    register_tool(reg, "complexity_evaluate", complexity_evaluate,
                 "Evaluate cyclomatic-ish complexity of a Python file",
                 category=ToolCategory.ANALYSIS,
                 parameters=[ToolParameter(name="file_path", type="string", description="Path to file")])
-    reg.register("coverage_collect", coverage_collect,
+    register_tool(reg, "coverage_collect", coverage_collect,
                 "Collect lightweight coverage stats for a project",
                 category=ToolCategory.ANALYSIS,
                 parameters=[ToolParameter(name="project_path", type="string", description="Project root", required=False, default=".")])
-    reg.register("pii_redact", pii_redact,
+    register_tool(reg, "pii_redact", pii_redact,
                 "Redact PII (email/phone/ssn) from text",
                 category=ToolCategory.ANALYSIS,
                 parameters=[ToolParameter(name="text", type="string", description="Input text")])
-    reg.register("telemetry_log", telemetry_log,
+    register_tool(reg, "telemetry_log", telemetry_log,
                 "Create a telemetry log entry",
                 category=ToolCategory.SYSTEM,
                 parameters=[ToolParameter(name="level", type="string", description="Level"),
                            ToolParameter(name="component", type="string", description="Component"),
                            ToolParameter(name="message", type="string", description="Message")])
-    reg.register("canary_evaluate", canary_evaluate,
+    register_tool(reg, "canary_evaluate", canary_evaluate,
                 "Evaluate canary promotion decision",
                 category=ToolCategory.ANALYSIS,
                 parameters=[ToolParameter(name="baseline", type="number", description="Baseline metric"),
                            ToolParameter(name="candidate", type="number", description="Candidate metric"),
                            ToolParameter(name="threshold", type="number", description="Threshold", required=False, default=0.05)])
-    reg.register("release_tag", release_tag,
+    register_tool(reg, "release_tag", release_tag,
                 "Compute next release version",
                 category=ToolCategory.SYSTEM,
                 parameters=[ToolParameter(name="current_version", type="string", description="Current version"),
                            ToolParameter(name="release_type", type="string", description="major/minor/patch", required=False, default="patch",
                                        enum=["major", "minor", "patch"])])
-    reg.register("hot_swap_reload", hot_swap_reload,
+    register_tool(reg, "hot_swap_reload", hot_swap_reload,
                 "Reload an imported module",
                 category=ToolCategory.SYSTEM,
                 parameters=[ToolParameter(name="module_name", type="string", description="Module name")])
-    reg.register("knowledge_extract", knowledge_extract,
+    register_tool(reg, "knowledge_extract", knowledge_extract,
                 "Extract classes/functions/imports from a Python file",
                 category=ToolCategory.ANALYSIS,
                 parameters=[ToolParameter(name="file_path", type="string", description="Path to file")])
