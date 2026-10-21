@@ -6,6 +6,8 @@ from .tools import ToolRegistry
 from .capabilities import register_capability_tools
 from .execution import register_execution_tools
 from .browser import register_browser_tools
+from .git_tools import register_git_tools
+from .lsp_tool import register_lsp_tools
 
 
 def register_default_tools(registry: ToolRegistry | None = None) -> ToolRegistry:
@@ -13,4 +15,6 @@ def register_default_tools(registry: ToolRegistry | None = None) -> ToolRegistry
     register_capability_tools(reg)
     register_execution_tools(reg)
     register_browser_tools(reg)
+    register_git_tools(reg)
+    register_lsp_tools(reg)
     return reg

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass, field
 from typing import Any
@@ -42,11 +43,15 @@ class Agent:
             if calls:
                 for call in calls:
                     tool_calls_log.append(call)
+                # execute tool calls in parallel
+                async def _exec(call):
                     try:
-                        result = await self.tools.execute(call["name"], call["arguments"])
-                        result_text = json.dumps(result) if not isinstance(result, str) else result
+                        r = await self.tools.execute(call["name"], call["arguments"])
+                        return json.dumps(r) if not isinstance(r, str) else r
                     except Exception as e:
-                        result_text = f"Error: {e}"
+                        return f"Error: {e}"
+                results = await asyncio.gather(*[_exec(c) for c in calls])
+                for call, result_text in zip(calls, results):
                     self.context.append("tool", result_text, metadata={"tool": call["name"]})
                 continue
             final_answer = content

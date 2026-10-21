@@ -15,6 +15,12 @@ from .skills import Skill, SkillRegistry, parse_skill
 from .skill_download import SkillDownloader
 from .tool_synthesis import ToolSynthesizer
 from .codebase_explore import CodebaseExplorer, extract_symbols
+from .reflection import ReflectionLoop
+from .git_tools import register_git_tools
+from .lsp_tool import register_lsp_tools, lsp_diagnostics
+from .tool_cache import ToolResultCache
+from .memory_consolidation import MemoryConsolidator
+from .tdd import TDDCycle
 from .hf_download import HFDownloader
 from .models_ini import ModelsIni
 from .coding_agent import CodingAgent, CodeResult, solve_code
